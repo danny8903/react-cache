@@ -1,34 +1,36 @@
-import { Subject, BehaviorSubject } from 'rxjs';
+import { Subject, BehaviorSubject, EMPTY, of, merge } from 'rxjs';
 import { Observer } from 'rxjs/internal/types';
 import { Observable } from 'rxjs/internal/Observable';
 
-import { map, filter } from 'rxjs/operators';
-import { normalize } from 'normalizr';
+import { map, filter, mergeMap } from 'rxjs/operators';
+import normalizr, { normalize, denormalize } from 'normalizr';
 
 import {
   StoreAction,
   StoreActionTypes,
   Entities,
-  FlattenJson,
+  Entity,
   LookupTypes,
   StoreOptions,
   IStoreContextValue,
+  LoadDataOptions,
+  LoadFromStore,
+  QueryPool,
+  HttpRequestFunction,
 } from './interfaces';
+
+type Changes = {
+  [schemaName: string]: string | string[];
+};
 
 export const createStore = (
   initState: unknown,
-  options?: StoreOptions
+  storeOptions?: StoreOptions
 ): IStoreContextValue => {
   const actionSubject = new Subject<StoreAction>();
-  // const stateSubject = new BehaviorSubject<T>(initState);
+  const changesSubject = new BehaviorSubject<Changes>({});
   const entitiesSubject = new BehaviorSubject<Entities>({});
-  const queryPoolSubject = new BehaviorSubject<{
-    [url: string]: [
-      string /** Schema Name */,
-      /** id or id list, depended on if input data is an array or not */
-      string | string[]
-    ];
-  }>({});
+  const queryPoolSubject = new BehaviorSubject<QueryPool>({});
 
   const updateQueryPool = (
     url: string,
@@ -61,73 +63,149 @@ export const createStore = (
     entitiesSubject.next(result);
   };
 
-  const lookup$ = actionSubject.pipe(
-    map((action) => {
-      if (action.type === StoreActionTypes.fetch) {
-        const queryPool = queryPoolSubject.getValue();
-        const entities = entitiesSubject.getValue();
-
-        const { options, url } = action;
-        if (
-          !options ||
-          !options.lookupType ||
-          options.lookupType === LookupTypes.url
-        ) {
-          if (Object.keys(queryPool).includes(url)) {
-            const [schemaName, dataId] = queryPool[url];
-
-            if (entities[schemaName]) {
-              return Array.isArray(dataId)
-                ? dataId.map((id) => (entities[schemaName] as FlattenJson)[id])
-                : (entities[schemaName] as FlattenJson)[dataId];
-            }
-          }
-          return null;
-        }
-        console.error(`Invalid lookupType: ${options.lookupType}`);
-        return new Error();
-      }
-
+  const storeUpdate$ = actionSubject.pipe(
+    mergeMap((action) => {
       if (action.type === StoreActionTypes.fetchSuccess) {
-        const { options, url, data, schema } = action;
-        if (
-          !options ||
-          !options.lookupType ||
-          options.lookupType === LookupTypes.url
-        ) {
+        const { options, url, data } = action;
+
+        if (options.lookupType === LookupTypes.id) {
           try {
             const normalized = normalize(
               data,
-              Array.isArray(data) ? [schema] : schema
+              options.schema
             ); /** pass userMergeStrategy and userProcessStrategy */
 
             updateStore(normalized.entities);
-            updateQueryPool(url, schema.key, normalized.result);
-            return normalized.entities;
+            return of(normalized.entities);
           } catch (err) {
             console.error('failed to normalize data', err);
-            return new Error();
+            return EMPTY;
           }
         }
-        console.error(`Invalid lookupType: ${options.lookupType}`);
-        return new Error();
+
+        if (options.lookupType === LookupTypes.entity) {
+          try {
+            const normalized = normalize(
+              data,
+              options.schema
+            ); /** pass userMergeStrategy and userProcessStrategy */
+
+            updateStore(normalized.entities);
+            updateQueryPool(url, options.schema[0].key, normalized.result);
+            return of(normalized.entities);
+          } catch (err) {
+            console.error('failed to normalize data', err);
+            return EMPTY;
+          }
+        }
+
+        console.error(`Invalid lookupType: ${JSON.stringify(options)}`);
+        return EMPTY;
       }
 
       console.error(`Invalid action: ${JSON.stringify(action)}`);
-      return new Error();
-    }),
-    filter((result) => !(result instanceof Error))
+      return EMPTY;
+    })
   );
 
   const dispatch = (action: StoreAction) => actionSubject.next(action);
   const subscribeChange = <T = unknown>(observer: Observer<T>) =>
-    (lookup$ as Observable<T>).subscribe(observer);
+    (storeUpdate$ as Observable<T>).subscribe(observer);
+
+  function denormalizeData(
+    normalizeData: unknown,
+    schema:
+      | normalizr.schema.Entity
+      | [normalizr.schema.Entity]
+      | normalizr.schema.Object,
+    entities: Entities,
+    returnNormalizeData: boolean
+  ) {
+    return returnNormalizeData
+      ? normalizeData
+      : denormalize(normalizeData, schema, entities);
+  }
+
+  const loadFromStore: LoadFromStore = (loadDataOptions) => (entities) => {
+    const returnNormalizeData = !!loadDataOptions.returnNormalizeData;
+
+    if (loadDataOptions.lookupType === LookupTypes.entity) {
+      const entity = entities[loadDataOptions.schema[0].key];
+      if (!entity) {
+        throw new Error(
+          `schema ${loadDataOptions.schema[0].key} is not yet loaded`
+        );
+      }
+      return denormalizeData(
+        Object.keys(entity),
+        loadDataOptions.schema,
+        entities,
+        returnNormalizeData
+      );
+    }
+
+    /**
+     *
+     *
+     * {
+     * org: 1,
+     * projects: [2,3,4]
+     *
+     * }
+     */
+    if (loadDataOptions.lookupType === LookupTypes.union) {
+      // const entity = entities[loadDataOptions.schema[0].key];
+      // if (!entity) {
+      //   throw new Error(
+      //     `schema ${loadDataOptions.schema[0].key} is not yet loaded`
+      //   );
+      // }
+      // return denormalizeData(
+      //   entity,
+      //   loadDataOptions.schema[0],
+      //   entities,
+      //   returnNormalizeData
+      // );
+    }
+
+    if (loadDataOptions.lookupType === LookupTypes.id) {
+      const entity = entities[loadDataOptions.schema.key];
+      if (!entity) {
+        throw new Error(
+          `schema ${loadDataOptions.schema.key} is not yet loaded`
+        );
+      }
+      return denormalizeData(
+        entity[loadDataOptions.id],
+        loadDataOptions.schema,
+        entities,
+        returnNormalizeData
+      );
+    }
+
+    throw new Error(`Invalid lookupType ${JSON.stringify(loadDataOptions)}`);
+  };
+
+  const DEFAULT_HTTP_REQUEST_FUNCTION: HttpRequestFunction = (url: string) => {
+    return fetch(url).then((response) =>
+      response
+        .json()
+        .then((json) => (!response.ok ? Promise.reject(json) : json))
+    );
+  };
+
+  const httpRequestFunction =
+    !storeOptions || !storeOptions.httpRequestFunction
+      ? DEFAULT_HTTP_REQUEST_FUNCTION
+      : storeOptions.httpRequestFunction;
 
   return {
     dispatch,
+    loadFromStore,
+    getEntities: () => entitiesSubject.getValue(),
+    getQueryPool: () => queryPoolSubject.getValue(),
     subscribeChange,
-    httpRequestFunction: options && options.httpRequestFunction,
-    // getState: () => finalStateSubject.getValue(),
+    httpRequestFunction,
     // subscribe: (observer: Observer<{ action: A; state: T }>) =>
     //   store$.subscribe(observer),
     // cleanup,

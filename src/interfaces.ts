@@ -6,14 +6,10 @@ import { Subscription } from 'rxjs/internal/Subscription';
 import normalizr from 'normalizr';
 
 export { Observable, Subscription };
-export type HttpRequestFunction = (url: string) => Promise<unknown>;
+export type HttpRequestFunction<T = unknown> = (url: string) => Promise<T>;
 
 export type Query = {
   url: string;
-};
-
-export type FlattenJson<T = unknown> = {
-  [id: string]: T;
 };
 
 export enum StoreActionTypes {
@@ -24,31 +20,53 @@ export enum StoreActionTypes {
 export enum LookupTypes {
   id = 'ID',
   url = 'URL',
+  union = 'UNION',
+  entity = 'ENTITY',
   none = 'NONE',
 }
 
-export type ActionOptions = {
-  lookupType?: LookupTypes;
+type LoadDataById = {
+  lookupType: LookupTypes.id;
+  id: string;
+  schema: normalizr.schema.Entity;
+  returnNormalizeData?: boolean;
 };
 
-interface IFetchSuccessAction {
+type LoadDataByEntity = {
+  lookupType: LookupTypes.entity;
+  schema: [normalizr.schema.Entity];
+  returnNormalizeData?: boolean;
+};
+
+type LoadDataByUnion = {
+  lookupType: LookupTypes.union;
+  schema: unknown;
+  returnNormalizeData?: boolean;
+};
+
+export type LoadDataOptions = LoadDataById | LoadDataByEntity | LoadDataByUnion;
+
+interface FetchSuccessAction {
   type: StoreActionTypes.fetchSuccess;
   url: string;
-  options?: ActionOptions;
+  options: LoadDataOptions;
   data: unknown;
-  schema: normalizr.schema.Entity;
 }
 
-interface IFetchDataAction {
+interface FetchDataAction {
   type: StoreActionTypes.fetch;
   url: string;
-  options?: ActionOptions;
+  options: LoadDataOptions;
 }
 
-export type StoreAction = IFetchDataAction | IFetchSuccessAction;
+export type StoreAction = FetchDataAction | FetchSuccessAction;
+
+export type Entity = {
+  [id: string]: unknown;
+};
 
 export type Entities = {
-  [schemaName: string]: FlattenJson | undefined;
+  [schemaName: string]: Entity | undefined;
 };
 
 export type ResponseData = {
@@ -61,9 +79,33 @@ export type StoreOptions = {
   httpRequestFunction?: HttpRequestFunction;
 };
 
+export type StoreUpdate = {
+  entities: Entities;
+  changes: Entities;
+};
+
+// export type LoadFromStore = <B extends LoadDataOptions, T>(
+//   loadDataOptions: B
+// ) => (
+//   entities: Entities
+// ) => B extends { returnNormalizeData: true } ? unknown : T;
+
+export type LoadFromStore = (
+  loadDataOptions: LoadDataOptions
+) => (entities: Entities) => unknown;
+
+export type QueryPool = {
+  [url: string]: {
+    [entity: string]: string[] /** id string list */;
+  };
+};
+
 export interface IStoreContextValue {
   dispatch: (fieldAction: StoreAction) => void;
-  // subscribe: (observer: Observer<Entities>) => Subscription;
+  loadFromStore: LoadFromStore;
+  getEntities: () => Entities;
+  getQueryPool: () => QueryPool;
+  // subscribe: (observer: Observer<StoreUpdate>) => Subscription;
   subscribeChange: <T = unknown>(observer: Observer<T>) => Subscription;
   // state: unknown;
   // getStore: () => Store;
@@ -78,5 +120,5 @@ export interface IStoreContextValue {
   //     string | string[]
   //   ];
   // }>;
-  httpRequestFunction?: HttpRequestFunction;
+  httpRequestFunction: HttpRequestFunction;
 }
