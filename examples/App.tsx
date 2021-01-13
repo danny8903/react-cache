@@ -116,8 +116,8 @@ function Home() {
   // const { data, loading } = useGet('/detail/1', schemas.USER, { cacheStrategy: strategy.lookupById(1) } /** options */);
 
   const { data, loading } = useGet<ListData[]>('/getList', {
-    schema: [schemas.USER],
-    lookupType: LookupTypes.entity,
+    schema: schemas.USER,
+    id: '1',
   });
   console.log({ data, loading });
   if (loading || !data) return <div>Loading...</div>;

@@ -1,66 +1,55 @@
-import normalizr, { schema as normalizrSchema } from 'normalizr';
+import * as normalizr from 'normalizr';
 
-export const parseSchema = (schema: unknown): normalizr.schema.Entity[] => {
-  if (schema instanceof normalizrSchema.Entity) {
-    return [schema];
-  }
+import { Schema, LookupTypes } from './interfaces';
 
-  if (typeof schema === 'object' && schema !== null) {
-    return Object.values(schema).reduce((r, s) => {
-      return r.concat(parseSchema(s));
-    }, []);
-  }
-
-  if (Array.isArray(schema)) {
-    if (schema.length > 1) {
-      console.error(
-        `Expected schema definition to be a single schema, but found ${schema.length}`
-      );
-      return [];
-    }
-    if (!(schema[0] instanceof normalizrSchema.Entity)) {
-      console.error(
-        `Invalid schema, you need to pass an instance of Entity to array`
-      );
-      return [];
-    }
-
-    return schema;
-  }
-
-  return [];
-};
-
-export const validateSchema = (schema: unknown): boolean => {
+export const validateSchemaAndParseLookupType = (
+  schema?: Schema
+): Exclude<LookupTypes, LookupTypes.never> => {
   if (!schema) {
-    console.error('schema is undefined');
-    return false;
+    throw new Error('Expected a schema definition, but got undefined');
+  }
+
+  if (schema instanceof normalizr.schema.Entity) return LookupTypes.id;
+
+  if (Array.isArray(schema)) {
+    if (schema.length > 1) {
+      throw new Error(
+        `Expected schema definition to be a single schema, but found ${schema.length}`
+      );
+    }
+    if (!(schema[0] instanceof normalizr.schema.Entity)) {
+      throw new Error(
+        `Invalid schema, expect an instance of normalizr.schema.Entity`
+      );
+    }
+    return LookupTypes.entity;
   }
 
   if (typeof schema === 'object' && schema !== null) {
-    const flattenValidation = Object.values(schema).reduce((r, s) => {
-      return r.concat(validateSchema(s));
-    }, []);
-    return !flattenValidation.includes(false);
+    Object.values(schema).forEach((s) => validateSchemaAndParseLookupType(s));
+    return LookupTypes.union;
   }
 
-  if (schema instanceof normalizrSchema.Entity) {
-    return true;
-  }
-  if (Array.isArray(schema)) {
-    if (schema.length > 1) {
-      console.error(
-        `Expected schema definition to be a single schema, but found ${schema.length}`
-      );
-      return false;
-    }
-    if (!(schema[0] instanceof normalizrSchema.Entity)) {
-      console.error(
-        `Invalid schema, you need to pass an instance of Entity to array`
-      );
-      return false;
-    }
-    return true;
-  }
-  return false;
+  throw new Error(`Invalid schema`);
 };
+
+// export const getFlattenEntitiesFromSchema = (
+//   schema: Schema
+// ): normalizr.schema.Entity[] => {
+//   if (schema instanceof normalizr.schema.Entity) {
+//     return [schema];
+//   }
+
+//   if (Array.isArray(schema)) {
+//     return schema;
+//   }
+
+//   if (typeof schema === 'object' && schema !== null) {
+//     return Object.values(schema).reduce(
+//       (entities, val) => [...entities, ...getFlattenEntitiesFromSchema(val)],
+//       [] as normalizr.schema.Entity[]
+//     );
+//   }
+
+//   return [];
+// };

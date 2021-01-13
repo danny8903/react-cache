@@ -19,32 +19,83 @@ export enum StoreActionTypes {
 
 export enum LookupTypes {
   id = 'ID',
-  url = 'URL',
   union = 'UNION',
   entity = 'ENTITY',
-  none = 'NONE',
+  never = 'NEVER',
 }
 
-type LoadDataById = {
+export type LoadDataById = {
   lookupType: LookupTypes.id;
   id: string;
   schema: normalizr.schema.Entity;
-  returnNormalizeData?: boolean;
+  filter?: (normalizeData: unknown) => boolean;
+  // shouldFetchData?: (normalizeData: unknown) => boolean;
+  // mapEntityToHook?: (
+  //   normalizeData: unknown,
+  //   denormalize: (input: string) => unknown
+  // ) => unknown;
 };
 
-type LoadDataByEntity = {
+export type LoadDataByEntity = {
   lookupType: LookupTypes.entity;
   schema: [normalizr.schema.Entity];
-  returnNormalizeData?: boolean;
+  filter?: (
+    entity: Entity,
+    entityIdsFromResponse: string[],
+    queryPool: QueryPool
+  ) => undefined | null | string[];
+  // mapEntityToHook?: (
+  //   entity: Entity,
+  //   denormalize: (input: string[]) => unknown
+  // ) => unknown;
+  // shouldFetchData?: (
+  //   entity: Entity,
+  //   idsFromResponseData: string[],
+  //   queryPool: QueryPool
+  // ) => boolean;
 };
 
-type LoadDataByUnion = {
+export type Schema =
+  | normalizr.schema.Entity
+  | [normalizr.schema.Entity]
+  | Union;
+
+export type Union = {
+  [key: string]: Schema;
+};
+
+export type IdCollection = {
+  [key: string]: string | string[] | IdCollection;
+};
+
+export type LoadDataByUnion = {
   lookupType: LookupTypes.union;
-  schema: unknown;
-  returnNormalizeData?: boolean;
+  schema: Union;
+  filter?: (
+    entities: Entities,
+    entityIdsFromResponse: IdCollection,
+    queryPool: QueryPool
+  ) => undefined | null | IdCollection;
+  // mapEntityToHook?: (
+  //   entities: Entities,
+  //   denormalize: (input: IdCollection) => unknown
+  // ) => unknown;
+  // shouldFetchData?: (
+  //   entities: Entities,
+  //   idsFromResponseData: IdCollection,
+  //   queryPool: QueryPool
+  // ) => boolean;
 };
 
-export type LoadDataOptions = LoadDataById | LoadDataByEntity | LoadDataByUnion;
+export type NeverLoadData = {
+  lookupType: LookupTypes.never;
+};
+
+export type LoadDataOptions =
+  | LoadDataById
+  | LoadDataByEntity
+  | LoadDataByUnion
+  | NeverLoadData;
 
 interface FetchSuccessAction {
   type: StoreActionTypes.fetchSuccess;
@@ -53,13 +104,7 @@ interface FetchSuccessAction {
   data: unknown;
 }
 
-interface FetchDataAction {
-  type: StoreActionTypes.fetch;
-  url: string;
-  options: LoadDataOptions;
-}
-
-export type StoreAction = FetchDataAction | FetchSuccessAction;
+export type StoreAction = FetchSuccessAction;
 
 export type Entity = {
   [id: string]: unknown;
@@ -82,22 +127,16 @@ export type StoreOptions = {
 export type StoreUpdate = {
   entities: Entities;
   changes: Entities;
+  url?: string;
 };
 
-// export type LoadFromStore = <B extends LoadDataOptions, T>(
-//   loadDataOptions: B
-// ) => (
-//   entities: Entities
-// ) => B extends { returnNormalizeData: true } ? unknown : T;
-
 export type LoadFromStore = (
-  loadDataOptions: LoadDataOptions
-) => (entities: Entities) => unknown;
+  loadDataOptions: Exclude<LoadDataOptions, NeverLoadData>,
+  url?: string
+) => unknown;
 
 export type QueryPool = {
-  [url: string]: {
-    [entity: string]: string[] /** id string list */;
-  };
+  [url: string]: IdCollection | undefined;
 };
 
 export interface IStoreContextValue {
@@ -107,18 +146,8 @@ export interface IStoreContextValue {
   getQueryPool: () => QueryPool;
   // subscribe: (observer: Observer<StoreUpdate>) => Subscription;
   subscribeChange: <T = unknown>(observer: Observer<T>) => Subscription;
-  // state: unknown;
   // getStore: () => Store;
 
   // updateStore: (normalizedData: unknown) => void;
-  // queryEmitter$: Subject<string>;
-  // queryEmitter$: Subject<Query>;
-  // queryPool$: BehaviorSubject<{
-  //   [url: string]: [
-  //     string /** Schema Name */,
-  //     /** id or id list, depended on if input data is an array or not */
-  //     string | string[]
-  //   ];
-  // }>;
   httpRequestFunction: HttpRequestFunction;
 }

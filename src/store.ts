@@ -112,6 +112,9 @@ export const createStore = (
   const subscribeChange = <T = unknown>(observer: Observer<T>) =>
     (storeUpdate$ as Observable<T>).subscribe(observer);
 
+  const getEntities = () => entitiesSubject.getValue();
+  const getQueryPool = () => queryPoolSubject.getValue();
+
   function denormalizeData(
     normalizeData: unknown,
     schema:
@@ -126,9 +129,8 @@ export const createStore = (
       : denormalize(normalizeData, schema, entities);
   }
 
-  const loadFromStore: LoadFromStore = (loadDataOptions) => (entities) => {
-    const returnNormalizeData = !!loadDataOptions.returnNormalizeData;
-
+  const loadFromStore: LoadFromStore = (loadDataOptions, url) => {
+    const entities = getEntities();
     if (loadDataOptions.lookupType === LookupTypes.entity) {
       const entity = entities[loadDataOptions.schema[0].key];
       if (!entity) {
@@ -136,11 +138,27 @@ export const createStore = (
           `schema ${loadDataOptions.schema[0].key} is not yet loaded`
         );
       }
-      return denormalizeData(
-        Object.keys(entity),
+
+      if (!!loadDataOptions.mapEntityToData) {
+        return loadDataOptions.mapEntityToData(entity, (input: string[]) => {
+          denormalize(input, loadDataOptions.schema, entities);
+        });
+      }
+
+      /**
+       * if not url passed in, return the whole entity data list
+       */
+      if (!url)
+        return denormalize(
+          Object.keys(entity),
+          loadDataOptions.schema,
+          entities
+        );
+      const queryPool = queryPoolSubject.getValue();
+      return denormalize(
+        queryPool[url] || [],
         loadDataOptions.schema,
-        entities,
-        returnNormalizeData
+        entities
       );
     }
 
@@ -154,6 +172,8 @@ export const createStore = (
      * }
      */
     if (loadDataOptions.lookupType === LookupTypes.union) {
+      return denormalize(Object.keys(entity), loadDataOptions.schema, entities);
+
       // const entity = entities[loadDataOptions.schema[0].key];
       // if (!entity) {
       //   throw new Error(
@@ -202,8 +222,8 @@ export const createStore = (
   return {
     dispatch,
     loadFromStore,
-    getEntities: () => entitiesSubject.getValue(),
-    getQueryPool: () => queryPoolSubject.getValue(),
+    getEntities,
+    getQueryPool,
     subscribeChange,
     httpRequestFunction,
     // subscribe: (observer: Observer<{ action: A; state: T }>) =>

@@ -17,9 +17,15 @@ import {
   LookupTypes,
   StoreUpdate,
   QueryPool,
+  Schema,
+  LoadDataById,
+  LoadDataByUnion,
+  LoadDataByEntity,
+  NeverLoadData,
+  IdCollection,
 } from './interfaces';
 
-import { parseSchema } from './utils';
+import { validateSchemaAndParseLookupType } from './utils';
 
 enum LoadDataStateTypes {
   loading = 'LOADING',
@@ -58,10 +64,21 @@ type State<T = unknown> = {
   error?: Error;
 };
 
-type UseGetOptions = {
-  schema: normalizr.schema.Entity | [normalizr.schema.Entity] | unknown;
+type Options = {
+  schema: Schema;
   id?: string;
-  returnNormalizeData?: boolean;
+  filter?:
+    | LoadDataById['filter']
+    | LoadDataByEntity['filter']
+    | LoadDataByUnion['filter'];
+  // shouldFetchData?:
+  //   | LoadDataById['shouldFetchData']
+  //   | LoadDataByEntity['shouldFetchData']
+  //   | LoadDataByUnion['shouldFetchData'];
+  // mapEntityToData?:
+  //   | LoadDataById['mapEntityToHook']
+  //   | LoadDataByEntity['mapEntityToHook']
+  //   | LoadDataByUnion['mapEntityToHook'];
 };
 
 const shouldFetchData = ({
@@ -73,63 +90,104 @@ const shouldFetchData = ({
   url: string;
   entities: Entities;
   queryPool: QueryPool;
-  loadDataOptions: LoadDataOptions | undefined;
+  loadDataOptions: LoadDataOptions;
 }): boolean => {
-  if (!loadDataOptions) {
+  if (loadDataOptions.lookupType === LookupTypes.never) {
     return true;
   }
 
   if (loadDataOptions.lookupType === LookupTypes.id) {
     const entity = entities[loadDataOptions.schema.key];
+
     if (!entity || !entity[loadDataOptions.id]) {
       // fetch data
       return true;
     }
+
+    if (!!loadDataOptions.filter) {
+      return loadDataOptions.filter(entity[loadDataOptions.id]);
+    }
+
     // load data from store
     return false;
   }
 
   if (loadDataOptions.lookupType === LookupTypes.entity) {
     const entity = entities[loadDataOptions.schema[0].key];
-    /**
-     * assuming LookupTypes.entity will fetch all data
-     * TODO: need to implement partial fetch
-     * */
-    const loadedEntityUrl = Object.keys(queryPool);
-    if (!entity || !loadedEntityUrl.includes(url)) {
-      // fetch data
-      return true;
+
+    if (!entity) return true;
+
+    if (!!loadDataOptions.shouldFetchData) {
+      const query = queryPool[url];
+      const dataIds = !query
+        ? []
+        : (query[loadDataOptions.schema[0].key] as string[]);
+      return loadDataOptions.shouldFetchData(entity, dataIds, queryPool);
     }
-    // load data from store
-    return false;
+
+    return !Object.keys(queryPool).includes(url);
   }
 
   if (loadDataOptions.lookupType === LookupTypes.union) {
-    const entityKeys = parseSchema(loadDataOptions.schema).map((s) => s.key);
-    const loadedEntityKeys = Object.keys(entities);
-    const loadedEntityUrl = Object.keys(queryPool);
-    if (
-      entityKeys.some((ek) => !loadedEntityKeys.includes(ek)) ||
-      !loadedEntityUrl.includes(url)
-    ) {
-      // fetch data
-      return true;
+    if (!!loadDataOptions.shouldFetchData) {
+      const dataIdollection = queryPool[url] as IdCollection;
+      return loadDataOptions.shouldFetchData(
+        entities,
+        dataIdollection,
+        queryPool
+      );
     }
-    // load data from store
-    return false;
+
+    return !Object.keys(queryPool).includes(url);
   }
 
   throw new Error(`Invalid lookupType: ${JSON.stringify(loadDataOptions)}`);
 };
 
-const parseOptions = (useGetOptions?: UseGetOptions) => {
-  if (!useGetOptions) return undefined;
+const prepareLoadDataOptions = (options?: Options): LoadDataOptions => {
+  /** valify options */
+  if (!options) return { lookupType: LookupTypes.never } as NeverLoadData;
+  if (!options.schema)
+    throw new Error('Expected a schema definition, but got undefined');
+
+  const lookupType = validateSchemaAndParseLookupType(options.schema);
+
+  if (lookupType === LookupTypes.id) {
+    if (!options.id) throw new Error('id of schema definition is missing');
+
+    return {
+      lookupType: LookupTypes.id,
+      ...options,
+    } as LoadDataById;
+  }
+
+  if (lookupType === LookupTypes.entity) {
+    return {
+      lookupType: LookupTypes.entity,
+      ...options,
+    } as LoadDataByEntity;
+  }
+
+  return {
+    lookupType: LookupTypes.union,
+    ...options,
+  } as LoadDataByUnion;
 };
 
-export const useGet = <T = unknown>(
+export function useGet<T>(
   requestUrl: string,
-  useGetOptions?: UseGetOptions
-) => {
+  options: Omit<LoadDataById, 'lookupType'>
+): State<T>;
+export function useGet<T>(
+  requestUrl: string,
+  options: Omit<LoadDataByEntity, 'lookupType'>
+): State<T>;
+export function useGet<T>(
+  requestUrl: string,
+  options: Omit<LoadDataByUnion, 'lookupType'>
+): State<T>;
+export function useGet<T>(requestUrl: string): State<T>;
+export function useGet<T>(requestUrl: string, options?: Options): State<T> {
   const {
     dispatch,
     loadFromStore,
@@ -139,13 +197,13 @@ export const useGet = <T = unknown>(
     httpRequestFunction,
   } = useContext(StoreContext);
 
+  const loadDataOptions = prepareLoadDataOptions(options);
+
   const [state, setState] = useState<State<T>>({
     loading: false,
     error: undefined,
     data: undefined,
   });
-
-  const loadDataOptions = parseOptions(useGetOptions);
 
   const { init, triggerUrlChangeHandler } = useMemo(() => {
     const url$ = new Subject<string>();
@@ -158,19 +216,36 @@ export const useGet = <T = unknown>(
       mergeMap((url) => {
         const entities = getEntities();
         const queryPool = getQueryPool();
-        if (
-          !loadDataOptions ||
-          shouldFetchData({ url, entities, queryPool, loadDataOptions })
-        ) {
-          // fetch data
-          return fetchData(url);
+
+        try {
+          if (shouldFetchData({ url, entities, queryPool, loadDataOptions })) {
+            // fetch data
+            return fetchData(url);
+          }
+        } catch (err) {
+          // TODO: test if the error is an Observable
+          return of<ErrorState>({
+            type: LoadDataStateTypes.error,
+            error: err,
+          });
         }
 
-        return of(loadFromStore(loadDataOptions)(entities)).pipe(
+        return of(
+          loadFromStore(
+            loadDataOptions as Exclude<LoadDataOptions, NeverLoadData>,
+            url
+          )
+        ).pipe(
           map<unknown, FromStoreState<T>>((data) => ({
             type: LoadDataStateTypes.fromStore,
             data: data as T,
-          }))
+          })),
+          catchError((err) =>
+            of<ErrorState>({
+              type: LoadDataStateTypes.error,
+              error: err,
+            })
+          )
         );
       })
     );
@@ -182,7 +257,7 @@ export const useGet = <T = unknown>(
         }),
         from(httpRequestFunction(url)).pipe(
           mergeMap((responseData) => {
-            if (!loadDataOptions) {
+            if (loadDataOptions.lookupType === LookupTypes.never) {
               return of<SuccessState<T>>({
                 type: LoadDataStateTypes.success,
                 data: responseData as T,
@@ -192,7 +267,7 @@ export const useGet = <T = unknown>(
             dispatch({
               type: StoreActionTypes.fetchSuccess,
               data: responseData,
-              url: requestUrl,
+              url,
               options: loadDataOptions,
             });
             return EMPTY;
@@ -244,31 +319,26 @@ export const useGet = <T = unknown>(
 
     const storeUpdateHandler$ = storeUpdate$.pipe(
       filter(({ changes }) => {
-        if (!loadDataOptions) {
+        if (loadDataOptions.lookupType === LookupTypes.never) {
           return false;
         }
 
         if (loadDataOptions.lookupType === LookupTypes.id) {
           const updatedEntity = changes[loadDataOptions.schema.key];
-          if (updatedEntity && updatedEntity[loadDataOptions.id]) {
-            return true;
-          }
-          return false;
+          return !!updatedEntity && !!updatedEntity[loadDataOptions.id];
         }
 
         if (loadDataOptions.lookupType === LookupTypes.entity) {
           const updatedEntity = changes[loadDataOptions.schema[0].key];
-          if (updatedEntity) {
-            return true;
-          }
-          return false;
+
+          return !!changes[loadDataOptions.schema[0].key];
         }
 
         if (loadDataOptions.lookupType === LookupTypes.union) {
           const updatedEntityKeys = Object.keys(changes);
-          const entityKeys = parseSchema(loadDataOptions.schema).map(
-            (s) => s.key
-          );
+          const entityKeys = getFlattenEntitiesFromSchema(
+            loadDataOptions.schema
+          ).map((s) => s.key);
 
           /**
            * TODO: need a filter to improve performance,
@@ -282,12 +352,25 @@ export const useGet = <T = unknown>(
 
         return false;
       }),
-      pluck('entities'),
-      map(loadFromStore(loadDataOptions as LoadDataOptions)),
-      map<unknown, FromStoreState<T>>((data) => ({
-        type: LoadDataStateTypes.fromStore,
-        data: data as T,
-      }))
+      mergeMap(() => {
+        return of(
+          loadFromStore(
+            loadDataOptions as Exclude<LoadDataOptions, NeverLoadData>,
+            requestUrl
+          )
+        ).pipe(
+          map<unknown, FromStoreState<T>>((data) => ({
+            type: LoadDataStateTypes.fromStore,
+            data: data as T,
+          })),
+          catchError((err) =>
+            of<ErrorState>({
+              type: LoadDataStateTypes.error,
+              error: err,
+            })
+          )
+        );
+      })
     );
 
     const init = () => {
@@ -346,4 +429,4 @@ export const useGet = <T = unknown>(
   return {
     ...state,
   };
-};
+}
