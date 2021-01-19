@@ -8,10 +8,6 @@ import normalizr from 'normalizr';
 export { Observable, Subscription };
 export type HttpRequestFunction<T = unknown> = (url: string) => Promise<T>;
 
-export type Query = {
-  url: string;
-};
-
 export enum StoreActionTypes {
   fetch = 'FETCH_DATA',
   fetchSuccess = 'FETCH_SUCCESS',
@@ -28,7 +24,7 @@ export type LoadDataById = {
   lookupType: LookupTypes.id;
   id: string;
   schema: normalizr.schema.Entity;
-  filter?: (normalizeData: unknown) => boolean;
+  lookup?: (normalizeData: unknown) => boolean;
   // shouldFetchData?: (normalizeData: unknown) => boolean;
   // mapEntityToHook?: (
   //   normalizeData: unknown,
@@ -39,11 +35,12 @@ export type LoadDataById = {
 export type LoadDataByEntity = {
   lookupType: LookupTypes.entity;
   schema: [normalizr.schema.Entity];
-  filter?: (
+  lookup?: (
     entity: Entity,
-    entityIdsFromResponse: string[],
-    queryPool: QueryPool
-  ) => undefined | null | string[];
+    entities: Entities
+    // entityIdsFromResponse: string[],
+    // queryPool: QueryPool
+  ) => string[];
   // mapEntityToHook?: (
   //   entity: Entity,
   //   denormalize: (input: string[]) => unknown
@@ -71,11 +68,11 @@ export type IdCollection = {
 export type LoadDataByUnion = {
   lookupType: LookupTypes.union;
   schema: Union;
-  filter?: (
-    entities: Entities,
-    entityIdsFromResponse: IdCollection,
-    queryPool: QueryPool
-  ) => undefined | null | IdCollection;
+  lookup: (
+    entities: Entities
+    // entityIdsFromResponse: IdCollection,
+    // queryPool: QueryPool
+  ) => false | IdCollection;
   // mapEntityToHook?: (
   //   entities: Entities,
   //   denormalize: (input: IdCollection) => unknown
@@ -124,6 +121,10 @@ export type StoreOptions = {
   httpRequestFunction?: HttpRequestFunction;
 };
 
+export type Remove = {
+  [EntityName: string]: string[];
+};
+
 export type StoreUpdate = {
   entities: Entities;
   changes: Entities;
@@ -135,8 +136,16 @@ export type LoadFromStore = (
   url?: string
 ) => unknown;
 
+type FlattenId = {
+  [EntityName: string]: string[];
+};
+
+/**
+ * IdCollection is used to denormalize data
+ * FlattenId is used to compare changes
+ */
 export type QueryPool = {
-  [url: string]: IdCollection | undefined;
+  [url: string]: [IdCollection, FlattenId] | undefined;
 };
 
 export interface IStoreContextValue {
@@ -150,4 +159,14 @@ export interface IStoreContextValue {
 
   // updateStore: (normalizedData: unknown) => void;
   httpRequestFunction: HttpRequestFunction;
+}
+
+export interface LoadData {
+  shouldFetchData(props: { queryPool: QueryPool; entities: Entities }): boolean;
+  filter(props: {
+    changes: Entities;
+    remove: Remove;
+    queryPool: QueryPool;
+  }): boolean;
+  distinct(current: unknown, next: unknown): boolean;
 }

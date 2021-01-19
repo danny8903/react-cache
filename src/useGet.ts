@@ -7,7 +7,7 @@ import {
 } from 'react';
 import { mergeMap, catchError, tap, map, filter, pluck } from 'rxjs/operators';
 import { from, Subject, of, merge, EMPTY } from 'rxjs';
-import normalizr from 'normalizr';
+import * as normalizr from 'normalizr';
 
 import { StoreContext } from './context';
 import {
@@ -67,18 +67,10 @@ type State<T = unknown> = {
 type Options = {
   schema: Schema;
   id?: string;
-  filter?:
-    | LoadDataById['filter']
-    | LoadDataByEntity['filter']
-    | LoadDataByUnion['filter'];
-  // shouldFetchData?:
-  //   | LoadDataById['shouldFetchData']
-  //   | LoadDataByEntity['shouldFetchData']
-  //   | LoadDataByUnion['shouldFetchData'];
-  // mapEntityToData?:
-  //   | LoadDataById['mapEntityToHook']
-  //   | LoadDataByEntity['mapEntityToHook']
-  //   | LoadDataByUnion['mapEntityToHook'];
+  lookup?:
+    | LoadDataById['lookup']
+    | LoadDataByEntity['lookup']
+    | LoadDataByUnion['lookup'];
 };
 
 const shouldFetchData = ({
@@ -117,25 +109,18 @@ const shouldFetchData = ({
 
     if (!entity) return true;
 
-    if (!!loadDataOptions.shouldFetchData) {
-      const query = queryPool[url];
-      const dataIds = !query
-        ? []
-        : (query[loadDataOptions.schema[0].key] as string[]);
-      return loadDataOptions.shouldFetchData(entity, dataIds, queryPool);
+    if (!!loadDataOptions.filter) {
+      const dataIds = loadDataOptions.filter(entity);
+      return !dataIds;
     }
 
     return !Object.keys(queryPool).includes(url);
   }
 
   if (loadDataOptions.lookupType === LookupTypes.union) {
-    if (!!loadDataOptions.shouldFetchData) {
-      const dataIdollection = queryPool[url] as IdCollection;
-      return loadDataOptions.shouldFetchData(
-        entities,
-        dataIdollection,
-        queryPool
-      );
+    if (!!loadDataOptions.filter) {
+      const idCollection = loadDataOptions.filter(entities);
+      return !idCollection;
     }
 
     return !Object.keys(queryPool).includes(url);
@@ -318,7 +303,11 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
     );
 
     const storeUpdateHandler$ = storeUpdate$.pipe(
-      filter(({ changes }) => {
+      filter(({ changes, entities, url, remove }) => {
+        return loadDataOptions.filter({ changes, remove });
+      }),
+      filter(loadDataOptions.filter),
+      filter(({ changes, entities, url }) => {
         if (loadDataOptions.lookupType === LookupTypes.never) {
           return false;
         }
@@ -330,6 +319,17 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
 
         if (loadDataOptions.lookupType === LookupTypes.entity) {
           const updatedEntity = changes[loadDataOptions.schema[0].key];
+          const entity = entities[loadDataOptions.schema[0].key];
+          if (!updatedEntity || !entity) return false;
+          if (url === requestUrl) return true;
+
+          if (!!loadDataOptions.filter) {
+            const dataIds = loadDataOptions.filter(entity);
+            if (!dataIds) return false;
+            return Object.keys(updatedEntity).some((id) =>
+              dataIds.includes(id)
+            );
+          }
 
           return !!changes[loadDataOptions.schema[0].key];
         }

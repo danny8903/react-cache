@@ -17,6 +17,8 @@ import {
   LoadFromStore,
   QueryPool,
   HttpRequestFunction,
+  NeverLoadData,
+  IdCollection,
 } from './interfaces';
 
 type Changes = {
@@ -129,7 +131,10 @@ export const createStore = (
       : denormalize(normalizeData, schema, entities);
   }
 
-  const loadFromStore: LoadFromStore = (loadDataOptions, url) => {
+  const loadFromStore: LoadFromStore = (
+    loadDataOptions: Exclude<LoadDataOptions, NeverLoadData>,
+    url?: string
+  ) => {
     const entities = getEntities();
     if (loadDataOptions.lookupType === LookupTypes.entity) {
       const entity = entities[loadDataOptions.schema[0].key];
@@ -139,10 +144,9 @@ export const createStore = (
         );
       }
 
-      if (!!loadDataOptions.mapEntityToData) {
-        return loadDataOptions.mapEntityToData(entity, (input: string[]) => {
-          denormalize(input, loadDataOptions.schema, entities);
-        });
+      if (!!loadDataOptions.filter) {
+        const dataIds = loadDataOptions.filter(entity);
+        return denormalize(dataIds, loadDataOptions.schema, entities);
       }
 
       /**
@@ -195,11 +199,10 @@ export const createStore = (
           `schema ${loadDataOptions.schema.key} is not yet loaded`
         );
       }
-      return denormalizeData(
+      return denormalize(
         entity[loadDataOptions.id],
         loadDataOptions.schema,
-        entities,
-        returnNormalizeData
+        entities
       );
     }
 
