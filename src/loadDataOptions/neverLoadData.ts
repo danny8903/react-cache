@@ -1,14 +1,9 @@
-import { LoadData } from '../interfaces';
-
-export default class NeverLoadData implements LoadData {
+export default class NeverLoadData {
   shouldFetchData() {
     return true;
   }
 
   filter() {
     return false;
-  }
-  distinct() {
-    return true;
   }
 }

@@ -5,7 +5,7 @@ import LoadDataByUrl from './loadDataByUrl';
 import { LoadData, Schema } from '../interfaces';
 import { validateSchema } from '../utils';
 
-type Options = {
+export type Options = {
   schema: Schema;
   id?: LoadDataByIdOptions['id'];
   shouldFetchData?: LoadDataByIdOptions['shouldFetchData'];
@@ -14,17 +14,8 @@ type Options = {
 
 export function createLoadDataOptions(
   url: string,
-  options: LoadDataByIdListOptions
-): LoadData;
-export function createLoadDataOptions(
-  url: string,
-  options: LoadDataByIdOptions
-): LoadData;
-export function createLoadDataOptions(url: string): LoadData;
-export function createLoadDataOptions(
-  url: string,
   options?: Options
-): LoadData {
+): LoadData | NeverLoadData {
   if (!options) return new NeverLoadData();
 
   validateSchema(options.schema);
@@ -39,5 +30,5 @@ export function createLoadDataOptions(
   if (!!options.findEntityIds)
     return new LoadDataByIdList(options as LoadDataByIdListOptions);
 
-  return new LoadDataByUrl({ url });
+  return new LoadDataByUrl({ schema: options.schema, url });
 }

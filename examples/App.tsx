@@ -8,7 +8,7 @@ import {
 } from 'react-router-dom';
 import { schema } from 'normalizr';
 
-import { StoreProvider, useGet, createStore, LookupTypes } from '../src/index';
+import { StoreProvider, useGet, createStore } from '../src/index';
 
 const httpRequestFunction = (url: string) => {
   if (url === '/getList') {
@@ -25,7 +25,7 @@ const httpRequestFunction = (url: string) => {
   throw new Error(`Invalid url: ${url}`);
 };
 
-const initStore = createStore({}, { httpRequestFunction });
+const initStore = createStore({ httpRequestFunction });
 
 const MOCK_DATA: unknown = [
   {
@@ -116,8 +116,7 @@ function Home() {
   // const { data, loading } = useGet('/detail/1', schemas.USER, { cacheStrategy: strategy.lookupById(1) } /** options */);
 
   const { data, loading } = useGet<ListData[]>('/getList', {
-    schema: schemas.USER,
-    id: '1',
+    schema: [schemas.USER],
   });
   console.log({ data, loading });
   if (loading || !data) return <div>Loading...</div>;
@@ -137,7 +136,10 @@ function Home() {
 
 function Detail() {
   const { id } = useParams<{ id: string }>();
-  const { data, loading } = useGet<ListData>(`/getDetail/${id}`, schemas.USER);
+  const { data, loading } = useGet<ListData>(`/getDetail/${id}`, {
+    schema: schemas.USER,
+    id,
+  });
   console.log({ data, loading });
   return (
     <div>

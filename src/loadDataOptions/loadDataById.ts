@@ -1,6 +1,11 @@
 import * as normalizr from 'normalizr';
 
-import { Entities, LoadData } from '../interfaces';
+import {
+  Entities,
+  LoadData,
+  UpdatedEntitiesAndIds,
+  NormalizeData,
+} from '../interfaces';
 
 export type LoadDataByIdOptions = {
   id: string;
@@ -19,7 +24,7 @@ export default class LoadDataById implements LoadData {
     this.shouldFetchDataCheck = options.shouldFetchData;
   }
 
-  shouldFetchData(entities: Entities) {
+  shouldFetchData({ entities }: { entities: Entities }) {
     const entity = entities[this.schema.key];
 
     if (!entity || !entity[this.id]) {
@@ -35,11 +40,27 @@ export default class LoadDataById implements LoadData {
     return false;
   }
 
-  filter({ changes }: { changes: Entities }) {
-    const updatedEntity = changes[this.schema.key];
-    return !!updatedEntity && !!updatedEntity[this.id];
+  filter({ updates }: { updates: UpdatedEntitiesAndIds }) {
+    const updatedIds = updates[this.schema.key];
+    return updatedIds.includes(this.id);
   }
-  distinct() {
-    return false;
+
+  loadData({ entities }: { entities: Entities }) {
+    const entity = entities[this.schema.key];
+    if (!entity) {
+      throw new Error(`schema ${this.schema.key} is not yet loaded`);
+    }
+    return normalizr.denormalize(entity[this.id], this.schema, entities);
+  }
+
+  normalize({ data }: Parameters<NormalizeData>[0]): ReturnType<NormalizeData> {
+    const normalized = normalizr.normalize(
+      data,
+      this.schema
+    ); /** pass userMergeStrategy and userProcessStrategy */
+
+    return {
+      ...normalized,
+    };
   }
 }

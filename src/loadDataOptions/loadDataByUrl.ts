@@ -1,85 +1,108 @@
+import * as normalizr from 'normalizr';
+
 import {
-  Entities,
-  Entity,
   QueryPool,
-  Remove,
-  Union,
+  Entities,
+  UpdatedEntitiesAndIds,
   LoadData,
+  Schema,
+  NormalizeData,
 } from '../interfaces';
 
-type Options = {
-  // schema: Union;
+import { getFlattenEntityKeys } from '../utils';
+
+export type LoadDataByUrlOptions = {
+  schema: Schema;
   url: string;
 };
 
 export default class LoadDataByUrl implements LoadData {
-  // private schema: Union;
-  private url: string;
+  private schema: LoadDataByUrlOptions['schema'];
+  private url: LoadDataByUrlOptions['url'];
 
-  constructor(options: Options) {
-    // this.schema = options.schema;
+  constructor(options: LoadDataByUrlOptions) {
+    this.schema = options.schema;
     this.url = options.url;
   }
 
   shouldFetchData({ queryPool }: { queryPool: QueryPool }) {
-    return !Object.keys(queryPool).includes(this.url);
+    return !queryPool[this.url];
+  }
+
+  loadData({
+    entities,
+    queryPool,
+  }: {
+    entities: Entities;
+    queryPool: QueryPool;
+  }): unknown {
+    const dataIds = queryPool[this.url];
+    return normalizr.denormalize(dataIds, this.schema, entities);
+  }
+
+  normalize({
+    data,
+    url,
+  }: Parameters<NormalizeData>[0]): ReturnType<NormalizeData> {
+    const normalized = normalizr.normalize(
+      data,
+      this.schema
+    ); /** pass userMergeStrategy and userProcessStrategy */
+
+    return {
+      ...normalized,
+      url,
+    };
   }
 
   filter({
-    changes,
-    remove,
+    updates,
     queryPool,
   }: {
-    changes: Entities;
-    remove: Remove;
+    updates: UpdatedEntitiesAndIds;
     queryPool: QueryPool;
   }): boolean {
     const isUrlExist = queryPool[this.url];
     if (!isUrlExist) return false;
-    const [, urlLoadedEntity] = isUrlExist;
+    const entityKeys = getFlattenEntityKeys(this.schema);
 
-    if (!!changes) {
-      const updatedEntityKeys = Object.keys(changes);
-      const urlLoadedEntityKeys = Object.keys(urlLoadedEntity);
-      const intersection = updatedEntityKeys.filter((key) =>
-        urlLoadedEntityKeys.includes(key)
-      );
-      if (intersection.length === 0) return false;
+    const intersection = Object.keys(updates).filter((key) =>
+      entityKeys.includes(key)
+    );
+    return intersection.length !== 0;
 
-      return intersection.some((key) => {
-        const updatedIds = Object.keys(changes[key] as Entity);
-        const urlLoadedEntityIds = urlLoadedEntity[key];
-        const idIntersection = updatedIds.filter((id) =>
-          urlLoadedEntityIds.includes(id)
-        );
+    // if (!!changes) {
 
-        return idIntersection.length !== 0;
-      });
-    }
+    //   return intersection.some((key) => {
+    //     const updatedIds = Object.keys(changes[key] as Entity);
+    //     const urlLoadedEntityIds = urlLoadedEntity[key];
+    //     const idIntersection = updatedIds.filter((id) =>
+    //       urlLoadedEntityIds.includes(id)
+    //     );
 
-    if (!!remove) {
-      const removedEntityKeys = Object.keys(remove);
-      const urlLoadedEntityKeys = Object.keys(urlLoadedEntity);
-      const intersection = removedEntityKeys.filter((key) =>
-        urlLoadedEntityKeys.includes(key)
-      );
-      if (intersection.length === 0) return false;
+    //     return idIntersection.length !== 0;
+    //   });
+    // }
 
-      return intersection.some((key) => {
-        const removedIds = remove[key];
-        const urlLoadedEntityIds = urlLoadedEntity[key];
-        const idIntersection = removedIds.filter((id) =>
-          urlLoadedEntityIds.includes(id)
-        );
+    // if (!!remove) {
+    //   const removedEntityKeys = Object.keys(remove);
+    //   const urlLoadedEntityKeys = Object.keys(urlLoadedEntity);
+    //   const intersection = removedEntityKeys.filter((key) =>
+    //     urlLoadedEntityKeys.includes(key)
+    //   );
+    //   if (intersection.length === 0) return false;
 
-        return idIntersection.length !== 0;
-      });
-    }
+    //   return intersection.some((key) => {
+    //     const removedIds = remove[key];
+    //     const urlLoadedEntityIds = urlLoadedEntity[key];
+    //     const idIntersection = removedIds.filter((id) =>
+    //       urlLoadedEntityIds.includes(id)
+    //     );
 
-    return false;
-  }
+    //     return idIntersection.length !== 0;
+    //   });
+    // }
 
-  distinct() {
-    return false;
+    // return false;
   }
 }

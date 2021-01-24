@@ -1,34 +1,38 @@
-// @ts-nocheck
 import { schema } from 'normalizr';
 
-import { validateSchemaAndParseLookupType } from '../utils';
+import { validateSchema } from '../utils';
 
 test('validateUnion should throw error', () => {
   expect(() => {
-    validateSchemaAndParseLookupType();
+    validateSchema();
   }).toThrow(new Error('Expected a schema definition, but got undefined'));
 
   const org = new schema.Entity('org');
   const project = new schema.Entity('project');
 
   expect(() => {
-    validateSchemaAndParseLookupType([org, project]);
+    // @ts-expect-error test two schemas
+    validateSchema([org, project]);
   }).toThrow(
     new Error('Expected schema definition to be a single schema, but found 2')
   );
   expect(() => {
-    validateSchemaAndParseLookupType([1]);
+    // @ts-expect-error test passing invalid schema
+    validateSchema([1]);
   }).toThrow(
     new Error('Invalid schema, expect an instance of normalizr.schema.Entity')
   );
   expect(() => {
-    validateSchemaAndParseLookupType(1);
+    // @ts-expect-error test passing invalid schema
+    validateSchema(1);
   }).toThrow(new Error('Invalid schema'));
   expect(() => {
-    validateSchemaAndParseLookupType('1');
+    // @ts-expect-error test passing invalid schema
+    validateSchema('1');
   }).toThrow(new Error('Invalid schema'));
   expect(() => {
-    validateSchemaAndParseLookupType({
+    // @ts-expect-error test passing invalid schema
+    validateSchema({
       org,
       project: 1,
     });

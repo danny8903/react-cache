@@ -1,6 +1,6 @@
 import * as normalizr from 'normalizr';
 
-import { Schema, LookupTypes, IdCollection } from './interfaces';
+import { Schema, IdCollection, Entities } from './interfaces';
 
 export const validateSchema = (schema?: Schema): void => {
   if (!schema) {
@@ -31,35 +31,23 @@ export const validateSchema = (schema?: Schema): void => {
   throw new Error(`Invalid schema`);
 };
 
-export const validateSchemaAndParseLookupType = (
-  schema?: Schema
-): Exclude<LookupTypes, LookupTypes.never> => {
-  if (!schema) {
-    throw new Error('Expected a schema definition, but got undefined');
+export const getFlattenEntityKeys = (schema: Schema): string[] => {
+  if (schema instanceof normalizr.schema.Entity) {
+    return [schema.key];
   }
 
-  if (schema instanceof normalizr.schema.Entity) return LookupTypes.id;
-
   if (Array.isArray(schema)) {
-    if (schema.length > 1) {
-      throw new Error(
-        `Expected schema definition to be a single schema, but found ${schema.length}`
-      );
-    }
-    if (!(schema[0] instanceof normalizr.schema.Entity)) {
-      throw new Error(
-        `Invalid schema, expect an instance of normalizr.schema.Entity`
-      );
-    }
-    return LookupTypes.entity;
+    return [schema[0].key];
   }
 
   if (typeof schema === 'object' && schema !== null) {
-    Object.values(schema).forEach((s) => validateSchemaAndParseLookupType(s));
-    return LookupTypes.union;
+    return Object.values(schema).reduce(
+      (keys, val) => [...keys, ...getFlattenEntityKeys(val)],
+      [] as string[]
+    );
   }
 
-  throw new Error(`Invalid schema`);
+  return [];
 };
 
 // export const getFlattenEntitiesFromSchema = (
@@ -116,4 +104,18 @@ export const validateIdCollection = (idCollection: IdCollection) => {
     `Expect an object type, but got ${JSON.stringify(idCollection)}`
   );
   return false;
+};
+
+export const convertEntitiesToNameAndIds = (entities: Entities) => {
+  const entitiesNames = Object.keys(entities);
+
+  const pair = entitiesNames
+    .map<false | [string, string[]]>((name) => {
+      const entity = entities[name];
+      if (!entity) return false;
+      const ids = Object.keys(entity);
+      return [name, ids];
+    })
+    .filter((v) => !!v);
+  return Object.fromEntries(pair as [string, string[]][]);
 };

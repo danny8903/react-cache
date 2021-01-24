@@ -5,27 +5,17 @@ import {
   useMemo,
   useEffect,
 } from 'react';
-import { mergeMap, catchError, tap, map, filter, pluck } from 'rxjs/operators';
+import { mergeMap, catchError, tap, map, filter } from 'rxjs/operators';
 import { from, Subject, of, merge, EMPTY } from 'rxjs';
-import * as normalizr from 'normalizr';
 
 import { StoreContext } from './context';
-import {
-  StoreActionTypes,
-  LoadDataOptions,
-  Entities,
-  LookupTypes,
-  StoreUpdate,
-  QueryPool,
-  Schema,
-  LoadDataById,
-  LoadDataByUnion,
-  LoadDataByEntity,
-  NeverLoadData,
-  IdCollection,
-} from './interfaces';
+import { StoreActionTypes, StoreUpdates, Schema, LoadData } from './interfaces';
 
-import { validateSchemaAndParseLookupType } from './utils';
+import { LoadDataByIdOptions } from './loadDataOptions/loadDataById';
+import { LoadDataByIdListOptions } from './loadDataOptions/loadDataByIdList';
+import NeverLoadData from './loadDataOptions/neverLoadData';
+
+import { createLoadDataOptions, Options } from './loadDataOptions';
 
 enum LoadDataStateTypes {
   loading = 'LOADING',
@@ -64,125 +54,29 @@ type State<T = unknown> = {
   error?: Error;
 };
 
-type Options = {
-  schema: Schema;
-  id?: string;
-  lookup?:
-    | LoadDataById['lookup']
-    | LoadDataByEntity['lookup']
-    | LoadDataByUnion['lookup'];
-};
-
-const shouldFetchData = ({
-  url,
-  entities,
-  queryPool,
-  loadDataOptions,
-}: {
-  url: string;
-  entities: Entities;
-  queryPool: QueryPool;
-  loadDataOptions: LoadDataOptions;
-}): boolean => {
-  if (loadDataOptions.lookupType === LookupTypes.never) {
-    return true;
-  }
-
-  if (loadDataOptions.lookupType === LookupTypes.id) {
-    const entity = entities[loadDataOptions.schema.key];
-
-    if (!entity || !entity[loadDataOptions.id]) {
-      // fetch data
-      return true;
-    }
-
-    if (!!loadDataOptions.filter) {
-      return loadDataOptions.filter(entity[loadDataOptions.id]);
-    }
-
-    // load data from store
-    return false;
-  }
-
-  if (loadDataOptions.lookupType === LookupTypes.entity) {
-    const entity = entities[loadDataOptions.schema[0].key];
-
-    if (!entity) return true;
-
-    if (!!loadDataOptions.filter) {
-      const dataIds = loadDataOptions.filter(entity);
-      return !dataIds;
-    }
-
-    return !Object.keys(queryPool).includes(url);
-  }
-
-  if (loadDataOptions.lookupType === LookupTypes.union) {
-    if (!!loadDataOptions.filter) {
-      const idCollection = loadDataOptions.filter(entities);
-      return !idCollection;
-    }
-
-    return !Object.keys(queryPool).includes(url);
-  }
-
-  throw new Error(`Invalid lookupType: ${JSON.stringify(loadDataOptions)}`);
-};
-
-const prepareLoadDataOptions = (options?: Options): LoadDataOptions => {
-  /** valify options */
-  if (!options) return { lookupType: LookupTypes.never } as NeverLoadData;
-  if (!options.schema)
-    throw new Error('Expected a schema definition, but got undefined');
-
-  const lookupType = validateSchemaAndParseLookupType(options.schema);
-
-  if (lookupType === LookupTypes.id) {
-    if (!options.id) throw new Error('id of schema definition is missing');
-
-    return {
-      lookupType: LookupTypes.id,
-      ...options,
-    } as LoadDataById;
-  }
-
-  if (lookupType === LookupTypes.entity) {
-    return {
-      lookupType: LookupTypes.entity,
-      ...options,
-    } as LoadDataByEntity;
-  }
-
-  return {
-    lookupType: LookupTypes.union,
-    ...options,
-  } as LoadDataByUnion;
-};
-
 export function useGet<T>(
   requestUrl: string,
-  options: Omit<LoadDataById, 'lookupType'>
+  options: LoadDataByIdOptions
 ): State<T>;
 export function useGet<T>(
   requestUrl: string,
-  options: Omit<LoadDataByEntity, 'lookupType'>
+  options: LoadDataByIdListOptions
 ): State<T>;
 export function useGet<T>(
   requestUrl: string,
-  options: Omit<LoadDataByUnion, 'lookupType'>
+  options: { schema: Schema }
 ): State<T>;
 export function useGet<T>(requestUrl: string): State<T>;
 export function useGet<T>(requestUrl: string, options?: Options): State<T> {
   const {
     dispatch,
-    loadFromStore,
-    subscribeChange,
+    subscribeUpdates,
     getEntities,
     getQueryPool,
     httpRequestFunction,
   } = useContext(StoreContext);
 
-  const loadDataOptions = prepareLoadDataOptions(options);
+  const loadDataOptions = createLoadDataOptions(requestUrl, options);
 
   const [state, setState] = useState<State<T>>({
     loading: false,
@@ -193,7 +87,7 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
   const { init, triggerUrlChangeHandler } = useMemo(() => {
     const url$ = new Subject<string>();
     const loadDataState$ = new Subject<LoadDataState<T>>();
-    const storeUpdate$ = new Subject<StoreUpdate>();
+    const storeUpdate$ = new Subject<StoreUpdates>();
 
     const triggerUrlChangeHandler = (url: string) => url$.next(url);
 
@@ -202,24 +96,13 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
         const entities = getEntities();
         const queryPool = getQueryPool();
 
-        try {
-          if (shouldFetchData({ url, entities, queryPool, loadDataOptions })) {
-            // fetch data
-            return fetchData(url);
-          }
-        } catch (err) {
-          // TODO: test if the error is an Observable
-          return of<ErrorState>({
-            type: LoadDataStateTypes.error,
-            error: err,
-          });
+        if (loadDataOptions.shouldFetchData({ entities, queryPool })) {
+          // fetch data
+          return fetchData(url);
         }
 
         return of(
-          loadFromStore(
-            loadDataOptions as Exclude<LoadDataOptions, NeverLoadData>,
-            url
-          )
+          (loadDataOptions as LoadData).loadData({ entities, queryPool })
         ).pipe(
           map<unknown, FromStoreState<T>>((data) => ({
             type: LoadDataStateTypes.fromStore,
@@ -242,7 +125,7 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
         }),
         from(httpRequestFunction(url)).pipe(
           mergeMap((responseData) => {
-            if (loadDataOptions.lookupType === LookupTypes.never) {
+            if (loadDataOptions instanceof NeverLoadData) {
               return of<SuccessState<T>>({
                 type: LoadDataStateTypes.success,
                 data: responseData as T,
@@ -303,61 +186,12 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
     );
 
     const storeUpdateHandler$ = storeUpdate$.pipe(
-      filter(({ changes, entities, url, remove }) => {
-        return loadDataOptions.filter({ changes, remove });
+      filter(({ updates, queryPool }) => {
+        return loadDataOptions.filter({ updates, queryPool });
       }),
-      filter(loadDataOptions.filter),
-      filter(({ changes, entities, url }) => {
-        if (loadDataOptions.lookupType === LookupTypes.never) {
-          return false;
-        }
-
-        if (loadDataOptions.lookupType === LookupTypes.id) {
-          const updatedEntity = changes[loadDataOptions.schema.key];
-          return !!updatedEntity && !!updatedEntity[loadDataOptions.id];
-        }
-
-        if (loadDataOptions.lookupType === LookupTypes.entity) {
-          const updatedEntity = changes[loadDataOptions.schema[0].key];
-          const entity = entities[loadDataOptions.schema[0].key];
-          if (!updatedEntity || !entity) return false;
-          if (url === requestUrl) return true;
-
-          if (!!loadDataOptions.filter) {
-            const dataIds = loadDataOptions.filter(entity);
-            if (!dataIds) return false;
-            return Object.keys(updatedEntity).some((id) =>
-              dataIds.includes(id)
-            );
-          }
-
-          return !!changes[loadDataOptions.schema[0].key];
-        }
-
-        if (loadDataOptions.lookupType === LookupTypes.union) {
-          const updatedEntityKeys = Object.keys(changes);
-          const entityKeys = getFlattenEntitiesFromSchema(
-            loadDataOptions.schema
-          ).map((s) => s.key);
-
-          /**
-           * TODO: need a filter to improve performance,
-           * schema not always an array, it can be a single entity, need that entity id to check if should update
-           */
-          if (entityKeys.some((ek) => updatedEntityKeys.includes(ek))) {
-            return true;
-          }
-          return false;
-        }
-
-        return false;
-      }),
-      mergeMap(() => {
+      mergeMap(({ entities, queryPool }) => {
         return of(
-          loadFromStore(
-            loadDataOptions as Exclude<LoadDataOptions, NeverLoadData>,
-            requestUrl
-          )
+          (loadDataOptions as LoadData).loadData({ entities, queryPool })
         ).pipe(
           map<unknown, FromStoreState<T>>((data) => ({
             type: LoadDataStateTypes.fromStore,
@@ -393,7 +227,7 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
       const storeUpdateSubscription = storeUpdateHandler$.subscribe(
         loadDataState$
       );
-      subscribeChange(storeUpdate$);
+      subscribeUpdates(storeUpdate$);
 
       return () => {
         loadDataStateSubscription.unsubscribe();
