@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   BrowserRouter as Router,
   Switch,
@@ -113,8 +113,6 @@ const schemas = {
 };
 
 function Home() {
-  // const { data, loading } = useGet('/detail/1', schemas.USER, { cacheStrategy: strategy.lookupById(1) } /** options */);
-
   const { data, loading } = useGet<ListData[]>('/getList', {
     schema: [schemas.USER],
   });
@@ -150,7 +148,7 @@ function Detail() {
 
 function App() {
   return (
-    <StoreProvider value={initStore}>
+    <StoreProvider store={initStore}>
       <Router>
         <div>
           <ul>

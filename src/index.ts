@@ -1,3 +1,4 @@
 export { createStore } from './store';
-export { StoreProvider } from './context';
+export { StoreProvider } from './StoreProvider';
+export { StoreConsumer } from './context';
 export { useGet } from './useGet';

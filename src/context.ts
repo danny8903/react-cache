@@ -3,11 +3,6 @@ import { IStoreContextValue } from './interfaces';
 
 const StoreContext = createContext({} as IStoreContextValue);
 
-const { Provider, Consumer } = StoreContext;
+const { Consumer } = StoreContext;
 
-
-export {
-  Provider as StoreProvider,
-  Consumer as StoreConsumer,
-  StoreContext,
-};
+export { Consumer as StoreConsumer, StoreContext };

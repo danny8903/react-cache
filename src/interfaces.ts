@@ -83,6 +83,7 @@ export type NormalizeData = (props: {
   url: string;
 }) => {
   entities: Entities;
+  /* eslint-disable  @typescript-eslint/no-explicit-any */
   result: any;
   url?: string;
 };

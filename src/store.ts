@@ -1,7 +1,15 @@
 import { Subject, BehaviorSubject, EMPTY, of } from 'rxjs';
 import { Observer } from 'rxjs/internal/types';
 
-import { map, filter, mergeMap, pluck, shareReplay } from 'rxjs/operators';
+import {
+  map,
+  filter,
+  mergeMap,
+  pluck,
+  shareReplay,
+  skip,
+  tap,
+} from 'rxjs/operators';
 
 import {
   StoreAction,
@@ -23,8 +31,12 @@ export const createStore = (
 ): IStoreContextValue => {
   const actionSubject = new Subject<StoreAction>();
   const lastUpdatesSubject = new BehaviorSubject<UpdatedEntitiesAndIds>({});
-  const entitiesSubject = new BehaviorSubject<Entities>(null as any);
+  const entitiesSubject = new BehaviorSubject<Entities>({});
   const queryPoolSubject = new BehaviorSubject<QueryPool>({});
+
+  const getEntities = () => entitiesSubject.getValue();
+  const getQueryPool = () => queryPoolSubject.getValue();
+  const getLastUpdates = () => lastUpdatesSubject.getValue();
 
   const parseQueryPool = (url: string, id: SchemaIdCollection): QueryPool => {
     const queryPool = queryPoolSubject.getValue();
@@ -86,15 +98,50 @@ export const createStore = (
   const entitiesSubscription = updateEntities$.subscribe(entitiesSubject);
 
   const storeUpdates$ = entitiesSubject.pipe(
-    filter((entities) => !!entities), // this is used to exclude the init value of BehaviorSubject
+    skip(1), // skip the default Behavior Subject value
     map((entities) => {
       const queryPool = getQueryPool();
       const updates = getLastUpdates();
-      console.log({ entities, queryPool, updates });
       return { entities, queryPool, updates };
     }),
     shareReplay(1)
   );
+
+  if (process.env.NODE_ENV === 'development') {
+    const logSubscription = entitiesSubject
+      .pipe(
+        tap((entities) => {
+          const queryPool = getQueryPool();
+          const updates = getLastUpdates();
+
+          console.groupCollapsed(
+            '%c Store State',
+            'color: #9E9E9E;',
+            `@ ${new Date().toLocaleTimeString()}`
+          );
+
+          console.log(
+            '%c updates',
+            'color: #03A9F4; font-weight: bold',
+            updates
+          );
+          console.log(
+            '%c entities',
+            'color: #4CAF50; font-weight: bold',
+            entities
+          );
+          console.log(
+            '%c queryPool',
+            'color: #03A9F4; font-weight: bold',
+            queryPool
+          );
+
+          console.groupEnd();
+        })
+      )
+      .subscribe();
+    entitiesSubscription.add(logSubscription);
+  }
 
   const cleanup = () => {
     entitiesSubscription.unsubscribe();
@@ -108,10 +155,6 @@ export const createStore = (
   const dispatch = (action: StoreAction) => actionSubject.next(action);
   const subscribeUpdates = (observer: Observer<StoreUpdates>) =>
     storeUpdates$.subscribe(observer);
-
-  const getEntities = () => entitiesSubject.getValue();
-  const getQueryPool = () => queryPoolSubject.getValue();
-  const getLastUpdates = () => lastUpdatesSubject.getValue();
 
   const DEFAULT_HTTP_REQUEST_FUNCTION: HttpRequestFunction = (url: string) => {
     return fetch(url).then((response) =>

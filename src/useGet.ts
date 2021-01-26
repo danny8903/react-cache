@@ -213,26 +213,16 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
         loadDataState$
       );
 
-      if (!loadDataOptions) {
-        return () => {
-          loadDataStateSubscription.unsubscribe();
-          newUrlSubscription.unsubscribe();
-
-          url$.complete();
-          loadDataState$.complete();
-          storeUpdate$.complete();
-        };
-      }
-
-      const storeUpdateSubscription = storeUpdateHandler$.subscribe(
+      const storeUpdateHandlerSubscription = storeUpdateHandler$.subscribe(
         loadDataState$
       );
-      subscribeUpdates(storeUpdate$);
+      const storeUpdateSubscription = subscribeUpdates(storeUpdate$);
 
       return () => {
         loadDataStateSubscription.unsubscribe();
         newUrlSubscription.unsubscribe();
         storeUpdateSubscription.unsubscribe();
+        storeUpdateHandlerSubscription.unsubscribe();
 
         url$.complete();
         loadDataState$.complete();
