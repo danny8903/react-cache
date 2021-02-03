@@ -1,6 +1,6 @@
 import { schema } from 'normalizr';
 
-import { validateSchema } from '../utils';
+import { validateSchema, isObject } from '../utils';
 
 test('validateUnion should throw error', () => {
   expect(() => {
@@ -39,4 +39,23 @@ test('validateUnion should throw error', () => {
   }).toThrow(new Error('Invalid schema'));
   //   expect(validateSchemaAndParseLookupType()).toThrow(new Error(''));
   //   expect(validateSchemaAndParseLookupType()).toThrow(new Error(''));
+});
+
+test('isObject should work properly', () => {
+  expect(isObject({})).toBeTruthy();
+  expect(isObject({ a: 1 })).toBeTruthy();
+  expect(
+    isObject({
+      a: {
+        b: 1,
+      },
+    })
+  ).toBeTruthy();
+
+  expect(isObject([])).toBeFalsy();
+  expect(isObject(1)).toBeFalsy();
+  expect(isObject(0)).toBeFalsy();
+  expect(isObject('1')).toBeFalsy();
+  expect(isObject(null)).toBeFalsy();
+  expect(isObject(undefined)).toBeFalsy();
 });

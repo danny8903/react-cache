@@ -1,15 +1,7 @@
-import { Subject, BehaviorSubject, EMPTY, of } from 'rxjs';
+import { Subject, BehaviorSubject } from 'rxjs';
 import { Observer } from 'rxjs/internal/types';
 
-import {
-  map,
-  filter,
-  mergeMap,
-  pluck,
-  shareReplay,
-  skip,
-  tap,
-} from 'rxjs/operators';
+import { map, shareReplay, skip, tap } from 'rxjs/operators';
 
 import {
   StoreAction,
@@ -19,12 +11,12 @@ import {
   IStoreContextValue,
   QueryPool,
   HttpRequestFunction,
-  SchemaIdCollection,
+  DenormalizeInput,
   StoreUpdates,
   UpdatedEntitiesAndIds,
 } from './interfaces';
 
-import { convertEntitiesToNameAndIds } from './utils';
+import { parseEntitiesUpdates } from './utils';
 
 export const createStore = (
   storeOptions?: StoreOptions
@@ -38,16 +30,19 @@ export const createStore = (
   const getQueryPool = () => queryPoolSubject.getValue();
   const getLastUpdates = () => lastUpdatesSubject.getValue();
 
-  const parseQueryPool = (url: string, id: SchemaIdCollection): QueryPool => {
+  const mergeQueryPool = (
+    url: string,
+    denormalizeInput: DenormalizeInput
+  ): QueryPool => {
     const queryPool = queryPoolSubject.getValue();
 
     return {
       ...queryPool,
-      [url]: id,
+      [url]: denormalizeInput,
     };
   };
 
-  const parseEntities = (newEntities: Entities): Entities => {
+  const mergeEntities = (newEntities: Entities): Entities => {
     const entities = entitiesSubject.getValue();
     return Object.entries(newEntities).reduce((mergedEntities, [id, value]) => {
       return {
@@ -60,42 +55,27 @@ export const createStore = (
     }, entities);
   };
 
-  const actionHandler$ = actionSubject.pipe(
-    mergeMap((action) => {
-      if (action.type === StoreActionTypes.fetchSuccess) {
-        const { options, url, data } = action;
-
-        try {
-          return of(options.normalize({ data, url }));
-        } catch (err) {
-          console.error('failed to normalize data', err);
-          return EMPTY;
+  const actionHandlerSubscription = actionSubject
+    .pipe(
+      tap((action) => {
+        if (action.type === StoreActionTypes.update) {
+          const {
+            denormalizeInput,
+            url,
+            entities,
+            shouldUpdateQueryPool,
+          } = action;
+          if (shouldUpdateQueryPool) {
+            queryPoolSubject.next(mergeQueryPool(url, denormalizeInput));
+          }
+          lastUpdatesSubject.next(parseEntitiesUpdates(entities));
+          entitiesSubject.next(mergeEntities(entities));
+          return;
         }
-      }
-
-      console.error(`Invalid action: ${JSON.stringify(action)}`);
-      return EMPTY;
-    })
-  );
-
-  const updateEntities$ = actionHandler$.pipe(
-    pluck('entities'),
-    map(parseEntities)
-  );
-
-  const updateQueryPool$ = actionHandler$.pipe(
-    filter(({ url }) => !!url),
-    map(({ url, result }) => parseQueryPool(url as string, result))
-  );
-
-  const lastUpdate$ = actionHandler$.pipe(
-    pluck('entities'),
-    map(convertEntitiesToNameAndIds)
-  );
-
-  const queryPoolSubscription = updateQueryPool$.subscribe(queryPoolSubject);
-  const lastUpdateSubscription = lastUpdate$.subscribe(lastUpdatesSubject);
-  const entitiesSubscription = updateEntities$.subscribe(entitiesSubject);
+        console.error(`Invalid action: ${JSON.stringify(action)}`);
+      })
+    )
+    .subscribe();
 
   const storeUpdates$ = entitiesSubject.pipe(
     skip(1), // skip the default Behavior Subject value
@@ -140,13 +120,11 @@ export const createStore = (
         })
       )
       .subscribe();
-    entitiesSubscription.add(logSubscription);
+    actionHandlerSubscription.add(logSubscription);
   }
 
   const cleanup = () => {
-    entitiesSubscription.unsubscribe();
-    queryPoolSubscription.unsubscribe();
-    lastUpdateSubscription.unsubscribe();
+    actionHandlerSubscription.unsubscribe();
     entitiesSubject.complete();
     queryPoolSubject.complete();
     lastUpdatesSubject.complete();

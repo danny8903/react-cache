@@ -1,21 +1,18 @@
 import * as normalizr from 'normalizr';
 
-import {
-  Entities,
-  LoadData,
-  UpdatedEntitiesAndIds,
-  NormalizeData,
-} from '../interfaces';
+import { Entities, LoadData, UpdatedEntitiesAndIds } from '../interfaces';
 
 export type LoadDataByIdOptions = {
   id: string;
   schema: normalizr.schema.Entity;
+  shouldUpdateQueryPool: boolean;
   shouldFetchData?: (normalizeData: unknown) => boolean;
 };
 
 export default class LoadDataById implements LoadData {
-  private id: LoadDataByIdOptions['id'];
-  private schema: LoadDataByIdOptions['schema'];
+  public id: LoadDataByIdOptions['id'];
+  public schema: LoadDataByIdOptions['schema'];
+  public shouldUpdateQueryPool: LoadDataByIdOptions['shouldUpdateQueryPool'] = false;
   private shouldFetchDataCheck?: LoadDataByIdOptions['shouldFetchData'];
 
   constructor(options: LoadDataByIdOptions) {
@@ -51,16 +48,5 @@ export default class LoadDataById implements LoadData {
       throw new Error(`schema ${this.schema.key} is not yet loaded`);
     }
     return normalizr.denormalize(entity[this.id], this.schema, entities);
-  }
-
-  normalize({ data }: Parameters<NormalizeData>[0]): ReturnType<NormalizeData> {
-    const normalized = normalizr.normalize(
-      data,
-      this.schema
-    ); /** pass userMergeStrategy and userProcessStrategy */
-
-    return {
-      ...normalized,
-    };
   }
 }

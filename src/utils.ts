@@ -1,6 +1,6 @@
 import * as normalizr from 'normalizr';
 
-import { Schema, IdCollection, Entities } from './interfaces';
+import { Schema, Entities } from './interfaces';
 
 export const validateSchema = (schema?: Schema): void => {
   if (!schema) {
@@ -50,63 +50,7 @@ export const getFlattenEntityKeys = (schema: Schema): string[] => {
   return [];
 };
 
-// export const getFlattenEntitiesFromSchema = (
-//   schema: Schema
-// ): normalizr.schema.Entity[] => {
-//   if (schema instanceof normalizr.schema.Entity) {
-//     return [schema];
-//   }
-
-//   if (Array.isArray(schema)) {
-//     return schema;
-//   }
-
-//   if (typeof schema === 'object' && schema !== null) {
-//     return Object.values(schema).reduce(
-//       (entities, val) => [...entities, ...getFlattenEntitiesFromSchema(val)],
-//       [] as normalizr.schema.Entity[]
-//     );
-//   }
-
-//   return [];
-// };
-
-const flattenIdCollection = (
-  idCollection: IdCollection | string | string[]
-): string[] => {
-  if (Array.isArray(idCollection)) {
-    return idCollection;
-  }
-
-  if (typeof idCollection === 'object' && idCollection !== null) {
-    return Object.values(idCollection).reduce(
-      (entities: string[], val) => [...entities, ...flattenIdCollection(val)],
-      [] as string[]
-    );
-  }
-  return [idCollection];
-};
-
-export const validateIdCollection = (idCollection: IdCollection) => {
-  if (typeof idCollection === 'object' && idCollection !== null) {
-    const flattenValue = flattenIdCollection(idCollection);
-
-    const invalidValue = flattenValue.find((v) => typeof v !== 'string');
-
-    if (invalidValue) {
-      console.error(`Expect string, but got ${JSON.stringify(invalidValue)}`);
-      return false;
-    }
-    return true;
-  }
-
-  console.error(
-    `Expect an object type, but got ${JSON.stringify(idCollection)}`
-  );
-  return false;
-};
-
-export const convertEntitiesToNameAndIds = (entities: Entities) => {
+export const parseEntitiesUpdates = (entities: Entities) => {
   const entitiesNames = Object.keys(entities);
 
   const pair = entitiesNames
@@ -119,3 +63,40 @@ export const convertEntitiesToNameAndIds = (entities: Entities) => {
     .filter((v) => !!v);
   return Object.fromEntries(pair as [string, string[]][]);
 };
+
+export const isObject = (obj: unknown): obj is Record<string, unknown> => {
+  return typeof obj === 'object' && obj !== null && !Array.isArray(obj);
+};
+
+export const isEmptyObject = (obj: Record<string, unknown>): boolean => {
+  for (const prop in obj) {
+    if (obj.hasOwnProperty(prop)) {
+      return false;
+    }
+  }
+
+  return JSON.stringify(obj) === JSON.stringify({});
+};
+
+export const isEntitiesValid = (data: Entities): void => {
+  if (isEmptyObject(data))
+    throw new Error(`There is no updates, store will not be updated`);
+
+  const invalidEntity = Object.entries(data).find(([, entity]) => {
+    if (!entity) return false;
+    return !!entity['undefined'];
+  });
+
+  if (invalidEntity)
+    throw new Error(
+      `Invalid Id found in schema "${invalidEntity[0]}", please check if the schema "idAttribute" is set properly`
+    );
+};
+
+// const isResponseDataValid = (data: unknown): boolean => {
+//   if(!data) return false; // null or undefined
+//   if(Array.isArray(data)) {
+//     if(data.length === 0) return false
+
+//   }
+// }

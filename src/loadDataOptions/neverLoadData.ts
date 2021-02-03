@@ -6,4 +6,8 @@ export default class NeverLoadData {
   filter() {
     return false;
   }
+
+  normalize(data: unknown) {
+    return data;
+  }
 }

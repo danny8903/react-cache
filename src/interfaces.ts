@@ -8,7 +8,7 @@ export type HttpRequestFunction<T = unknown> = (url: string) => Promise<T>;
 
 export enum StoreActionTypes {
   fetch = 'FETCH_DATA',
-  fetchSuccess = 'FETCH_SUCCESS',
+  update = 'UPDATE',
 }
 
 export type Schema =
@@ -27,16 +27,17 @@ export type IdCollection = {
   [key: string]: string | string[] | IdCollection;
 };
 
-export type SchemaIdCollection = string | string[] | IdCollection;
+export type DenormalizeInput = string | string[] | IdCollection;
 
-interface FetchSuccessAction {
-  type: StoreActionTypes.fetchSuccess;
+interface UpdateAction {
+  type: StoreActionTypes.update;
   url: string;
-  options: LoadData;
-  data: unknown;
+  denormalizeInput: DenormalizeInput;
+  entities: Entities;
+  shouldUpdateQueryPool: boolean;
 }
 
-export type StoreAction = FetchSuccessAction;
+export type StoreAction = UpdateAction;
 
 export type Entity = {
   [id: string]: unknown;
@@ -63,10 +64,10 @@ export type StoreUpdates = {
 };
 
 /**
- * SchemaIdCollection is used to denormalize data
+ * DenormalizeInput is used to denormalize data
  */
 export type QueryPool = {
-  [url: string]: SchemaIdCollection | undefined;
+  [url: string]: DenormalizeInput | undefined;
 };
 
 export interface IStoreContextValue {
@@ -78,24 +79,15 @@ export interface IStoreContextValue {
   cleanup: () => void;
 }
 
-export type NormalizeData = (props: {
-  data: unknown;
-  url: string;
-}) => {
-  entities: Entities;
-  /* eslint-disable  @typescript-eslint/no-explicit-any */
-  result: any;
-  url?: string;
-};
-
 export interface LoadData {
+  schema: Schema;
+  shouldUpdateQueryPool: boolean;
   shouldFetchData(props: { queryPool: QueryPool; entities: Entities }): boolean;
   filter(props: {
     updates: UpdatedEntitiesAndIds;
     queryPool: QueryPool;
   }): boolean;
   loadData(props: { queryPool: QueryPool; entities: Entities }): unknown;
-  normalize: NormalizeData;
 }
 
 /**

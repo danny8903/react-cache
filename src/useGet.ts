@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { mergeMap, catchError, tap, map, filter } from 'rxjs/operators';
 import { from, Subject, of, merge, EMPTY } from 'rxjs';
+import { normalize } from 'normalizr';
 
 import { StoreContext } from './context';
 import { StoreActionTypes, StoreUpdates, Schema, LoadData } from './interfaces';
@@ -16,6 +17,7 @@ import { LoadDataByIdListOptions } from './loadDataOptions/loadDataByIdList';
 import NeverLoadData from './loadDataOptions/neverLoadData';
 
 import { createLoadDataOptions, Options } from './loadDataOptions';
+import { isEmptyObject, isObject, isEntitiesValid } from './utils';
 
 enum LoadDataStateTypes {
   loading = 'LOADING',
@@ -132,13 +134,29 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
               });
             }
 
-            dispatch({
-              type: StoreActionTypes.fetchSuccess,
-              data: responseData,
-              url,
-              options: loadDataOptions,
-            });
-            return EMPTY;
+            try {
+              const normalized = normalize(
+                responseData,
+                loadDataOptions.schema
+              ); /** pass userMergeStrategy and userProcessStrategy */
+
+              isEntitiesValid(normalized.entities);
+
+              dispatch({
+                type: StoreActionTypes.update,
+                entities: normalized.entities,
+                denormalizeInput: normalized.result,
+                url,
+                shouldUpdateQueryPool: loadDataOptions.shouldUpdateQueryPool,
+              });
+              return EMPTY;
+            } catch (err) {
+              console.warn(err.message || err);
+              return of<SuccessState<T>>({
+                type: LoadDataStateTypes.success,
+                data: responseData as T,
+              });
+            }
           }),
           catchError((err) =>
             of<ErrorState>({

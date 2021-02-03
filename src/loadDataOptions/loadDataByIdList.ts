@@ -6,19 +6,20 @@ import {
   QueryPool,
   UpdatedEntitiesAndIds,
   LoadData,
-  SchemaIdCollection,
-  NormalizeData,
+  DenormalizeInput,
 } from '../interfaces';
 
 export type LoadDataByIdListOptions = {
   schema: [normalizr.schema.Entity];
   url: string;
-  findEntityIds: (entity: Entity, entities: Entities) => SchemaIdCollection;
+  shouldUpdateQueryPool: boolean;
+  findEntityIds: (entity: Entity, entities: Entities) => DenormalizeInput;
 };
 
 export default class LoadDataByIdList implements LoadData {
-  private schema: LoadDataByIdListOptions['schema'];
-  private url: LoadDataByIdListOptions['url'];
+  public schema: LoadDataByIdListOptions['schema'];
+  public url: LoadDataByIdListOptions['url'];
+  public shouldUpdateQueryPool: LoadDataByIdListOptions['shouldUpdateQueryPool'] = true;
   private findEntityIds: LoadDataByIdListOptions['findEntityIds'];
 
   constructor(options: LoadDataByIdListOptions) {
@@ -46,21 +47,6 @@ export default class LoadDataByIdList implements LoadData {
 
   filter({ updates }: { updates: UpdatedEntitiesAndIds }): boolean {
     return !!updates[this.schema[0].key];
-  }
-
-  normalize({
-    data,
-    url,
-  }: Parameters<NormalizeData>[0]): ReturnType<NormalizeData> {
-    const normalized = normalizr.normalize(
-      data,
-      this.schema
-    ); /** pass userMergeStrategy and userProcessStrategy */
-
-    return {
-      ...normalized,
-      url,
-    };
   }
 
   loadData(entities: Entities): unknown {
