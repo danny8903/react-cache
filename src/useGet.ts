@@ -17,7 +17,7 @@ import { LoadDataByIdListOptions } from './loadDataOptions/loadDataByIdList';
 import NeverLoadData from './loadDataOptions/neverLoadData';
 
 import { createLoadDataOptions, Options } from './loadDataOptions';
-import { isEmptyObject, isObject, isEntitiesValid } from './utils';
+import { isEntitiesValid } from './utils';
 
 enum LoadDataStateTypes {
   loading = 'LOADING',

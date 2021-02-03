@@ -13,18 +13,21 @@ import { getFlattenEntityKeys } from '../utils';
 export type LoadDataByUrlOptions = {
   schema: Schema;
   url: string;
-  shouldUpdateQueryPool: boolean;
+  // shouldUpdateQueryPool: boolean;
 };
 
 export default class LoadDataByUrl implements LoadData {
   public url: LoadDataByUrlOptions['url'];
   public schema: LoadDataByUrlOptions['schema'];
-  public shouldUpdateQueryPool: LoadDataByUrlOptions['shouldUpdateQueryPool'] = true;
+  public shouldUpdateQueryPool: boolean;
 
   constructor(options: LoadDataByUrlOptions) {
     this.schema = options.schema;
     this.url = options.url;
+    this.shouldUpdateQueryPool = true;
   }
+
+  // shouldUpdateQueryPool = true;
 
   shouldFetchData({ queryPool }: { queryPool: QueryPool }) {
     return !queryPool[this.url];

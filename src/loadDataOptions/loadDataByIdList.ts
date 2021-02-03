@@ -12,20 +12,20 @@ import {
 export type LoadDataByIdListOptions = {
   schema: [normalizr.schema.Entity];
   url: string;
-  shouldUpdateQueryPool: boolean;
   findEntityIds: (entity: Entity, entities: Entities) => DenormalizeInput;
 };
 
 export default class LoadDataByIdList implements LoadData {
   public schema: LoadDataByIdListOptions['schema'];
   public url: LoadDataByIdListOptions['url'];
-  public shouldUpdateQueryPool: LoadDataByIdListOptions['shouldUpdateQueryPool'] = true;
+  public shouldUpdateQueryPool: boolean;
   private findEntityIds: LoadDataByIdListOptions['findEntityIds'];
 
   constructor(options: LoadDataByIdListOptions) {
     this.schema = options.schema;
     this.url = options.url;
     this.findEntityIds = options.findEntityIds;
+    this.shouldUpdateQueryPool = true;
   }
 
   shouldFetchData({

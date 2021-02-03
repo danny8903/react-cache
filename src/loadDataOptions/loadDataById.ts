@@ -5,20 +5,20 @@ import { Entities, LoadData, UpdatedEntitiesAndIds } from '../interfaces';
 export type LoadDataByIdOptions = {
   id: string;
   schema: normalizr.schema.Entity;
-  shouldUpdateQueryPool: boolean;
   shouldFetchData?: (normalizeData: unknown) => boolean;
 };
 
 export default class LoadDataById implements LoadData {
   public id: LoadDataByIdOptions['id'];
   public schema: LoadDataByIdOptions['schema'];
-  public shouldUpdateQueryPool: LoadDataByIdOptions['shouldUpdateQueryPool'] = false;
+  public shouldUpdateQueryPool: boolean;
   private shouldFetchDataCheck?: LoadDataByIdOptions['shouldFetchData'];
 
   constructor(options: LoadDataByIdOptions) {
     this.id = options.id;
     this.schema = options.schema;
     this.shouldFetchDataCheck = options.shouldFetchData;
+    this.shouldUpdateQueryPool = false;
   }
 
   shouldFetchData({ entities }: { entities: Entities }) {
