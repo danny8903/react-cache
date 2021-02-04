@@ -37,8 +37,6 @@ test('validateUnion should throw error', () => {
       project: 1,
     });
   }).toThrow(new Error('Invalid schema'));
-  //   expect(validateSchemaAndParseLookupType()).toThrow(new Error(''));
-  //   expect(validateSchemaAndParseLookupType()).toThrow(new Error(''));
 });
 
 test('isObject should work properly', () => {

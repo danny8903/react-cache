@@ -92,11 +92,3 @@ export const isEntitiesValid = (data: Entities): void => {
       `Invalid Id found in schema "${invalidEntity[0]}", please check if the schema "idAttribute" is set properly`
     );
 };
-
-// const isResponseDataValid = (data: unknown): boolean => {
-//   if(!data) return false; // null or undefined
-//   if(Array.isArray(data)) {
-//     if(data.length === 0) return false
-
-//   }
-// }
