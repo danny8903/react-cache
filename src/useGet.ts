@@ -4,6 +4,7 @@ import {
   useState,
   useMemo,
   useEffect,
+  useRef,
 } from 'react';
 import { mergeMap, catchError, tap, map, filter } from 'rxjs/operators';
 import { from, Subject, of, merge, EMPTY } from 'rxjs';
@@ -80,6 +81,16 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
 
   const loadDataOptions = createLoadDataOptions(requestUrl, options);
 
+  /**
+   * isUnmount is used to prevent store update.
+   * When a component is unmount, but the request promise is not yet resolved,
+   * "isUnmount" will prevent store update.
+   *
+   * It tries to fix similar bug of below
+   * https://www.freecodecamp.org/news/how-to-easily-cancel-useeffect-http-calls-with-rxjs-d1be418014e8/
+   */
+  const isUnmount = useRef(false);
+
   const [state, setState] = useState<State<T>>({
     loading: false,
     error: undefined,
@@ -126,6 +137,7 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
           type: LoadDataStateTypes.loading,
         }),
         from(httpRequestFunction(url)).pipe(
+          filter(() => !isUnmount.current),
           mergeMap((responseData) => {
             if (loadDataOptions instanceof NeverLoadData) {
               return of<SuccessState<T>>({
@@ -237,6 +249,8 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
       const storeUpdateSubscription = subscribeUpdates(storeUpdate$);
 
       return () => {
+        isUnmount.current = true;
+
         loadDataStateSubscription.unsubscribe();
         newUrlSubscription.unsubscribe();
         storeUpdateSubscription.unsubscribe();

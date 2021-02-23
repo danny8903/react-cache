@@ -134,6 +134,11 @@ function Home() {
 
 function Detail() {
   const { id } = useParams<{ id: string }>();
+
+  // const data = useStore((entities) => {
+  //   return entities.users
+  // })
+
   const { data, loading } = useGet<ListData>(`/getDetail/${id}`, {
     schema: schemas.USER,
     id,
