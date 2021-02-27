@@ -9,6 +9,8 @@ export type HttpRequestFunction<T = unknown> = (url: string) => Promise<T>;
 export enum StoreActionTypes {
   fetch = 'FETCH_DATA',
   update = 'UPDATE',
+  merge = 'MERGE',
+  delete = 'DELETE',
 }
 
 export type Schema =
@@ -27,17 +29,17 @@ export type IdCollection = {
   [key: string]: string | string[] | IdCollection;
 };
 
-export type DenormalizeInput = string | string[] | IdCollection;
-
-interface UpdateAction {
-  type: StoreActionTypes.update;
-  url: string;
-  denormalizeInput: DenormalizeInput;
-  entities: Entities;
-  shouldUpdateQueryPool: boolean;
+interface MergeAction {
+  type: StoreActionTypes.merge;
+  newEntities: Entities;
 }
 
-export type StoreAction = UpdateAction;
+interface DeleteAction {
+  type: StoreActionTypes.delete;
+  deletedEntitiesAndIds: UpdatedEntitiesAndIds;
+}
+
+export type StoreAction = MergeAction | DeleteAction;
 
 export type Entity = {
   [id: string]: unknown;
@@ -60,20 +62,11 @@ export type StoreOptions = {
 export type StoreUpdates = {
   entities: Entities;
   updates: UpdatedEntitiesAndIds;
-  queryPool: QueryPool;
-};
-
-/**
- * DenormalizeInput is used to denormalize data
- */
-export type QueryPool = {
-  [url: string]: DenormalizeInput | undefined;
 };
 
 export interface IStoreContextValue {
   dispatch: (fieldAction: StoreAction) => void;
   getEntities: () => Entities;
-  getQueryPool: () => QueryPool;
   subscribeUpdates: (observer: Observer<StoreUpdates>) => Subscription;
   httpRequestFunction: HttpRequestFunction;
   cleanup: () => void;
@@ -81,13 +74,10 @@ export interface IStoreContextValue {
 
 export interface LoadData {
   schema: Schema;
-  shouldUpdateQueryPool: boolean;
-  shouldFetchData(props: { queryPool: QueryPool; entities: Entities }): boolean;
-  filter(props: {
-    updates: UpdatedEntitiesAndIds;
-    queryPool: QueryPool;
-  }): boolean;
-  loadData(props: { queryPool: QueryPool; entities: Entities }): unknown;
+  // shouldUpdateQueryPool: boolean;
+  shouldFetchData(props: { entities: Entities }): boolean;
+  filter(props: { updates: UpdatedEntitiesAndIds }): boolean;
+  loadData(props: { entities: Entities }): unknown;
 }
 
 /**

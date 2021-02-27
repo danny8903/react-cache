@@ -9,6 +9,7 @@ import {
 import { schema } from 'normalizr';
 
 import { StoreProvider, useGet, createStore } from '../src/index';
+import { useHttp } from '../src/useHttp';
 
 const httpRequestFunction = (url: string) => {
   if (url === '/getList') {
@@ -134,6 +135,18 @@ function Home() {
 
 function Detail() {
   const { id } = useParams<{ id: string }>();
+  /**
+ * 
+ * 
+ const [postData, {data, loading, error}] = useHttp((params) => {
+   
+}, ({entities,response, merge, delete, fetch}) => {
+  fetch(`/getList`, {
+    schema: [schemas.USER],
+  })
+})
+
+*/
 
   // const data = useStore((entities) => {
   //   return entities.users

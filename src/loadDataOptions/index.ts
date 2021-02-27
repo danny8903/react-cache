@@ -1,7 +1,6 @@
 import NeverLoadData from './neverLoadData';
 import LoadDataById, { LoadDataByIdOptions } from './loadDataById';
 import LoadDataByIdList, { LoadDataByIdListOptions } from './loadDataByIdList';
-import LoadDataByUrl from './loadDataByUrl';
 import { LoadData, Schema } from '../interfaces';
 import { validateSchema } from '../utils';
 
@@ -13,7 +12,6 @@ export type Options = {
 };
 
 export function createLoadDataOptions(
-  url: string,
   options?: Options
 ): LoadData | NeverLoadData {
   if (!options) return new NeverLoadData();
@@ -27,8 +25,5 @@ export function createLoadDataOptions(
 
   if (!!options.id) return new LoadDataById(options as LoadDataByIdOptions);
 
-  if (!!options.findEntityIds)
-    return new LoadDataByIdList(options as LoadDataByIdListOptions);
-
-  return new LoadDataByUrl({ schema: options.schema, url });
+  return new LoadDataByIdList(options as LoadDataByIdListOptions);
 }

@@ -1,5 +1,7 @@
 import * as normalizr from 'normalizr';
 
+import { getSubSchemasKeys } from '../utils';
+
 import { Entities, LoadData, UpdatedEntitiesAndIds } from '../interfaces';
 
 export type LoadDataByIdOptions = {
@@ -11,14 +13,12 @@ export type LoadDataByIdOptions = {
 export default class LoadDataById implements LoadData {
   public id: LoadDataByIdOptions['id'];
   public schema: LoadDataByIdOptions['schema'];
-  public shouldUpdateQueryPool: boolean;
   private shouldFetchDataCheck?: LoadDataByIdOptions['shouldFetchData'];
 
   constructor(options: LoadDataByIdOptions) {
     this.id = options.id;
     this.schema = options.schema;
     this.shouldFetchDataCheck = options.shouldFetchData;
-    this.shouldUpdateQueryPool = false;
   }
 
   shouldFetchData({ entities }: { entities: Entities }) {
@@ -38,8 +38,12 @@ export default class LoadDataById implements LoadData {
   }
 
   filter({ updates }: { updates: UpdatedEntitiesAndIds }) {
-    const updatedIds = updates[this.schema.key];
-    return updatedIds.includes(this.id);
+    const keys = getSubSchemasKeys(this.schema);
+
+    const intersection = Object.keys(updates).filter((key) =>
+      keys.includes(key)
+    );
+    return intersection.length !== 0;
   }
 
   loadData({ entities }: { entities: Entities }) {

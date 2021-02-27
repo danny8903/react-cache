@@ -9,9 +9,7 @@ import {
   Entities,
   StoreOptions,
   IStoreContextValue,
-  QueryPool,
   HttpRequestFunction,
-  DenormalizeInput,
   StoreUpdates,
   UpdatedEntitiesAndIds,
 } from './interfaces';
@@ -24,23 +22,9 @@ export const createStore = (
   const actionSubject = new Subject<StoreAction>();
   const lastUpdatesSubject = new BehaviorSubject<UpdatedEntitiesAndIds>({});
   const entitiesSubject = new BehaviorSubject<Entities>({});
-  const queryPoolSubject = new BehaviorSubject<QueryPool>({});
 
   const getEntities = () => entitiesSubject.getValue();
-  const getQueryPool = () => queryPoolSubject.getValue();
   const getLastUpdates = () => lastUpdatesSubject.getValue();
-
-  const mergeQueryPool = (
-    url: string,
-    denormalizeInput: DenormalizeInput
-  ): QueryPool => {
-    const queryPool = queryPoolSubject.getValue();
-
-    return {
-      ...queryPool,
-      [url]: denormalizeInput,
-    };
-  };
 
   const mergeEntities = (newEntities: Entities): Entities => {
     const entities = entitiesSubject.getValue();
@@ -55,21 +39,40 @@ export const createStore = (
     }, entities);
   };
 
+  const deleteEntities = (
+    deletedEntitiesAndIds: UpdatedEntitiesAndIds
+  ): Entities => {
+    const entities = entitiesSubject.getValue();
+
+    return Object.entries(entities).reduce(
+      (newEntities, [entitiesName, entity]) => {
+        if (!deletedEntitiesAndIds[entitiesName] || !entity)
+          return Object.assign(newEntities, { [entitiesName]: entity });
+
+        const idsToRemove = deletedEntitiesAndIds[entitiesName];
+        const pairs = Object.entries(entity).filter(
+          ([id]) => !idsToRemove.includes(id)
+        );
+        return Object.fromEntries(pairs);
+      },
+      {}
+    );
+  };
+
   const actionHandlerSubscription = actionSubject
     .pipe(
       tap((action) => {
-        if (action.type === StoreActionTypes.update) {
-          const {
-            denormalizeInput,
-            url,
-            entities,
-            shouldUpdateQueryPool,
-          } = action;
-          if (shouldUpdateQueryPool) {
-            queryPoolSubject.next(mergeQueryPool(url, denormalizeInput));
-          }
-          lastUpdatesSubject.next(parseEntitiesUpdates(entities));
-          entitiesSubject.next(mergeEntities(entities));
+        if (action.type === StoreActionTypes.merge) {
+          const { newEntities } = action;
+          lastUpdatesSubject.next(parseEntitiesUpdates(newEntities));
+          entitiesSubject.next(mergeEntities(newEntities));
+          return;
+        }
+
+        if (action.type === StoreActionTypes.delete) {
+          const { deletedEntitiesAndIds } = action;
+          lastUpdatesSubject.next(deletedEntitiesAndIds);
+          entitiesSubject.next(deleteEntities(deletedEntitiesAndIds));
           return;
         }
         console.error(`Invalid action: ${JSON.stringify(action)}`);
@@ -80,9 +83,8 @@ export const createStore = (
   const storeUpdates$ = entitiesSubject.pipe(
     skip(1), // skip the default Behavior Subject value
     map((entities) => {
-      const queryPool = getQueryPool();
       const updates = getLastUpdates();
-      return { entities, queryPool, updates };
+      return { entities, updates };
     }),
     shareReplay(1)
   );
@@ -91,7 +93,6 @@ export const createStore = (
     const logSubscription = entitiesSubject
       .pipe(
         tap((entities) => {
-          const queryPool = getQueryPool();
           const updates = getLastUpdates();
 
           console.groupCollapsed(
@@ -110,11 +111,6 @@ export const createStore = (
             'color: #4CAF50; font-weight: bold',
             entities
           );
-          console.log(
-            '%c queryPool',
-            'color: #03A9F4; font-weight: bold',
-            queryPool
-          );
 
           console.groupEnd();
         })
@@ -126,7 +122,6 @@ export const createStore = (
   const cleanup = () => {
     actionHandlerSubscription.unsubscribe();
     entitiesSubject.complete();
-    queryPoolSubject.complete();
     lastUpdatesSubject.complete();
   };
 
@@ -150,7 +145,6 @@ export const createStore = (
   return {
     dispatch,
     getEntities,
-    getQueryPool,
     subscribeUpdates,
     httpRequestFunction,
     cleanup,

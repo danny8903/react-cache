@@ -11,7 +11,7 @@ import { from, Subject, of, merge, EMPTY } from 'rxjs';
 import { normalize } from 'normalizr';
 
 import { StoreContext } from './context';
-import { StoreActionTypes, StoreUpdates, Schema, LoadData } from './interfaces';
+import { StoreActionTypes, StoreUpdates, LoadData } from './interfaces';
 
 import { LoadDataByIdOptions } from './loadDataOptions/loadDataById';
 import { LoadDataByIdListOptions } from './loadDataOptions/loadDataByIdList';
@@ -65,21 +65,16 @@ export function useGet<T>(
   requestUrl: string,
   options: LoadDataByIdListOptions
 ): State<T>;
-export function useGet<T>(
-  requestUrl: string,
-  options: { schema: Schema }
-): State<T>;
 export function useGet<T>(requestUrl: string): State<T>;
 export function useGet<T>(requestUrl: string, options?: Options): State<T> {
   const {
     dispatch,
     subscribeUpdates,
     getEntities,
-    getQueryPool,
     httpRequestFunction,
   } = useContext(StoreContext);
 
-  const loadDataOptions = createLoadDataOptions(requestUrl, options);
+  const loadDataOptions = createLoadDataOptions(options);
 
   /**
    * isUnmount is used to prevent store update.
@@ -107,16 +102,13 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
     const newUrlRequestHandler$ = url$.pipe(
       mergeMap((url) => {
         const entities = getEntities();
-        const queryPool = getQueryPool();
 
-        if (loadDataOptions.shouldFetchData({ entities, queryPool })) {
+        if (loadDataOptions.shouldFetchData({ entities })) {
           // fetch data
           return fetchData(url);
         }
 
-        return of(
-          (loadDataOptions as LoadData).loadData({ entities, queryPool })
-        ).pipe(
+        return of((loadDataOptions as LoadData).loadData({ entities })).pipe(
           map<unknown, FromStoreState<T>>((data) => ({
             type: LoadDataStateTypes.fromStore,
             data: data as T,
@@ -155,11 +147,8 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
               isEntitiesValid(normalized.entities);
 
               dispatch({
-                type: StoreActionTypes.update,
-                entities: normalized.entities,
-                denormalizeInput: normalized.result,
-                url,
-                shouldUpdateQueryPool: loadDataOptions.shouldUpdateQueryPool,
+                type: StoreActionTypes.merge,
+                newEntities: normalized.entities,
               });
               return EMPTY;
             } catch (err) {
@@ -216,13 +205,11 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
     );
 
     const storeUpdateHandler$ = storeUpdate$.pipe(
-      filter(({ updates, queryPool }) => {
-        return loadDataOptions.filter({ updates, queryPool });
+      filter(({ updates }) => {
+        return loadDataOptions.filter({ updates });
       }),
-      mergeMap(({ entities, queryPool }) => {
-        return of(
-          (loadDataOptions as LoadData).loadData({ entities, queryPool })
-        ).pipe(
+      mergeMap(({ entities }) => {
+        return of((loadDataOptions as LoadData).loadData({ entities })).pipe(
           map<unknown, FromStoreState<T>>((data) => ({
             type: LoadDataStateTypes.fromStore,
             data: data as T,

@@ -92,3 +92,18 @@ export const isEntitiesValid = (data: Entities): void => {
       `Invalid Id found in schema "${invalidEntity[0]}", please check if the schema "idAttribute" is set properly`
     );
 };
+
+export const getSubSchemasKeys = (
+  schema: normalizr.schema.Entity
+): string[] => {
+  const schemaName = schema.key;
+  const subSchemas: normalizr.schema.Entity[] = Object.values(
+    (schema as any).schema
+  );
+  return subSchemas.reduce(
+    (keys, subSchema) => {
+      return [...keys, ...getSubSchemasKeys(subSchema)];
+    },
+    [schemaName]
+  );
+};

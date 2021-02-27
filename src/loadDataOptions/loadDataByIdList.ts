@@ -1,52 +1,47 @@
 import * as normalizr from 'normalizr';
 
+import { getSubSchemasKeys } from '../utils';
+
 import {
   Entities,
   Entity,
-  QueryPool,
   UpdatedEntitiesAndIds,
   LoadData,
-  DenormalizeInput,
 } from '../interfaces';
 
 export type LoadDataByIdListOptions = {
   schema: [normalizr.schema.Entity];
-  url: string;
-  findEntityIds: (entity: Entity, entities: Entities) => DenormalizeInput;
+  findEntityIds?: (entity: Entity, entities: Entities) => string[];
 };
 
 export default class LoadDataByIdList implements LoadData {
   public schema: LoadDataByIdListOptions['schema'];
-  public url: LoadDataByIdListOptions['url'];
-  public shouldUpdateQueryPool: boolean;
   private findEntityIds: LoadDataByIdListOptions['findEntityIds'];
 
   constructor(options: LoadDataByIdListOptions) {
     this.schema = options.schema;
-    this.url = options.url;
     this.findEntityIds = options.findEntityIds;
-    this.shouldUpdateQueryPool = true;
   }
 
-  shouldFetchData({
-    entities,
-    queryPool,
-  }: {
-    entities: Entities;
-    queryPool: QueryPool;
-  }) {
+  shouldFetchData({ entities }: { entities: Entities }) {
     const entity = entities[this.schema[0].key];
 
     if (!entity) return true;
 
-    const entityIds = this.findEntityIds(entity, entities);
+    const entityIds = this.findEntityIds
+      ? this.findEntityIds(entity, entities)
+      : Object.keys(entity);
 
-    if (entityIds.length > 0) return false;
-    return !queryPool[this.url];
+    return !(entityIds.length > 0);
   }
 
   filter({ updates }: { updates: UpdatedEntitiesAndIds }): boolean {
-    return !!updates[this.schema[0].key];
+    const keys = getSubSchemasKeys(this.schema[0]);
+
+    const intersection = Object.keys(updates).filter((key) =>
+      keys.includes(key)
+    );
+    return intersection.length !== 0;
   }
 
   loadData(entities: Entities): unknown {
@@ -55,22 +50,9 @@ export default class LoadDataByIdList implements LoadData {
       throw new Error(`schema ${this.schema[0].key} is not yet loaded`);
     }
 
-    const dataIds = this.findEntityIds(entity, entities);
+    const dataIds = this.findEntityIds
+      ? this.findEntityIds(entity, entities)
+      : Object.keys(entity);
     return normalizr.denormalize(dataIds, this.schema, entities);
   }
-
-  // parseForDistinct({ entities }: { entities: Entities }) {
-  //   const entity = entities[this.schema[0].key] as Entity;
-  //   const entityIds = this.findEntityIds(entity, entities);
-  //   return entityIds;
-  // }
-
-  // distinct(currentEntityIds: string[], nextEntityIds: string[]) {
-  //   return (
-  //     currentEntityIds.length == nextEntityIds.length &&
-  //     currentEntityIds.every((id, idx) => {
-  //       return id === nextEntityIds[idx];
-  //     })
-  //   );
-  // }
 }
