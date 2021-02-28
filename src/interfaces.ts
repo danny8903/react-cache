@@ -10,6 +10,7 @@ export enum StoreActionTypes {
   update = 'UPDATE',
   merge = 'MERGE',
   delete = 'DELETE',
+  error = 'ERROR',
 }
 
 export type Schema =
@@ -65,6 +66,7 @@ export type StoreUpdates = {
 
 export interface IStoreContextValue {
   dispatch: (fieldAction: StoreAction) => void;
+  dispatchError: (error: Error) => void;
   getEntities: () => Entities;
   subscribeUpdates: (observer: Observer<StoreUpdates>) => Subscription;
   cleanup: () => void;
@@ -72,7 +74,6 @@ export interface IStoreContextValue {
 
 export interface LoadData {
   schema: Schema;
-  // shouldUpdateQueryPool: boolean;
   shouldFetchData(props: { entities: Entities }): boolean;
   filter(props: { updates: UpdatedEntitiesAndIds }): boolean;
   loadData(props: { entities: Entities }): unknown;

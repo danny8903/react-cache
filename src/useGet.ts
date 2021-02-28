@@ -59,15 +59,17 @@ type State<T = unknown> = {
 
 type RequestFunction = () => Promise<unknown>;
 
+type OnError = (err: Error) => void;
+
 export function useGet<T>(
   requestFunction: RequestFunction,
   deps: unknown[],
-  options: LoadDataByIdOptions
+  options: LoadDataByIdOptions & { onError?: OnError }
 ): State<T>;
 export function useGet<T>(
   requestFunction: RequestFunction,
   deps: unknown[],
-  options: LoadDataByIdListOptions
+  options: LoadDataByIdListOptions & { onError?: OnError }
 ): State<T>;
 export function useGet<T>(
   requestFunction: RequestFunction,
@@ -76,10 +78,12 @@ export function useGet<T>(
 export function useGet<T>(
   requestFunction: RequestFunction,
   deps: unknown[] = [],
-  options?: Options
+  options?: Options & { onError?: OnError }
 ): State<T> {
-  const { dispatch, subscribeUpdates, getEntities } = useContext(StoreContext);
-
+  const { dispatch, subscribeUpdates, getEntities, dispatchError } = useContext(
+    StoreContext
+  );
+  const onError = options?.onError || dispatchError;
   const loadDataOptions = createLoadDataOptions(options);
 
   /**
@@ -119,12 +123,13 @@ export function useGet<T>(
             type: LoadDataStateTypes.fromStore,
             data: data as T,
           })),
-          catchError((err) =>
-            of<ErrorState>({
+          catchError((err) => {
+            onError(err);
+            return of<ErrorState>({
               type: LoadDataStateTypes.error,
               error: err,
-            })
-          )
+            });
+          })
         );
       })
     );
@@ -165,12 +170,13 @@ export function useGet<T>(
               });
             }
           }),
-          catchError((err) =>
-            of<ErrorState>({
+          catchError((err) => {
+            onError(err);
+            return of<ErrorState>({
               type: LoadDataStateTypes.error,
               error: err,
-            })
-          )
+            });
+          })
         )
       );
 
@@ -220,12 +226,13 @@ export function useGet<T>(
             type: LoadDataStateTypes.fromStore,
             data: data as T,
           })),
-          catchError((err) =>
-            of<ErrorState>({
+          catchError((err) => {
+            onError(err);
+            return of<ErrorState>({
               type: LoadDataStateTypes.error,
               error: err,
-            })
-          )
+            });
+          })
         );
       })
     );

@@ -1,16 +1,12 @@
 import { useContext, useLayoutEffect, useState, useMemo } from 'react';
 import { mergeMap, catchError, tap, map } from 'rxjs/operators';
 import { from, Subject, of, merge } from 'rxjs';
-import { normalize } from 'normalizr';
-
-import { isEntitiesValid } from './utils';
 
 import { StoreContext } from './context';
 import {
   StoreActionTypes,
   Entities,
   UpdatedEntitiesAndIds,
-  Schema,
 } from './interfaces';
 
 enum RequestStates {
@@ -60,7 +56,8 @@ export function useHttp(
   requestFunction: RequestFunction,
   options?: Options
 ): Result {
-  const { dispatch, getEntities } = useContext(StoreContext);
+  const { dispatch, getEntities, dispatchError } = useContext(StoreContext);
+  const onError = options?.onError || dispatchError;
 
   const [state, setState] = useState<State>({
     loading: false,
@@ -111,9 +108,7 @@ export function useHttp(
                 error: err,
               }).pipe(
                 tap((errorState) => {
-                  if (options?.onError) {
-                    options.onError(errorState.error);
-                  }
+                  onError(errorState.error);
                 })
               )
             )

@@ -22,6 +22,8 @@ export const createStore = (
   const lastUpdatesSubject = new BehaviorSubject<UpdatedEntitiesAndIds>({});
   const entitiesSubject = new BehaviorSubject<Entities>({});
 
+  const errorSubject = new Subject<Error>();
+
   const getEntities = () => entitiesSubject.getValue();
   const getLastUpdates = () => lastUpdatesSubject.getValue();
 
@@ -79,6 +81,16 @@ export const createStore = (
     )
     .subscribe();
 
+  const errorSubscription = errorSubject
+    .pipe(
+      tap((err) => {
+        if (storeOptions?.onError) {
+          storeOptions.onError(err);
+        }
+      })
+    )
+    .subscribe();
+
   const storeUpdates$ = entitiesSubject.pipe(
     skip(1), // skip the default BehaviorSubject value
     map((entities) => {
@@ -120,16 +132,21 @@ export const createStore = (
 
   const cleanup = () => {
     actionHandlerSubscription.unsubscribe();
+    errorSubscription.unsubscribe();
     entitiesSubject.complete();
     lastUpdatesSubject.complete();
+    errorSubject.complete();
   };
 
   const dispatch = (action: StoreAction) => actionSubject.next(action);
   const subscribeUpdates = (observer: Observer<StoreUpdates>) =>
     storeUpdates$.subscribe(observer);
 
+  const dispatchError = (error: Error) => errorSubject.next(error);
+
   return {
     dispatch,
+    dispatchError,
     getEntities,
     subscribeUpdates,
     cleanup,
