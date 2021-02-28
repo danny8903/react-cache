@@ -9,7 +9,6 @@ import {
   Entities,
   StoreOptions,
   IStoreContextValue,
-  HttpRequestFunction,
   StoreUpdates,
   UpdatedEntitiesAndIds,
 } from './interfaces';
@@ -81,7 +80,7 @@ export const createStore = (
     .subscribe();
 
   const storeUpdates$ = entitiesSubject.pipe(
-    skip(1), // skip the default Behavior Subject value
+    skip(1), // skip the default BehaviorSubject value
     map((entities) => {
       const updates = getLastUpdates();
       return { entities, updates };
@@ -129,24 +128,10 @@ export const createStore = (
   const subscribeUpdates = (observer: Observer<StoreUpdates>) =>
     storeUpdates$.subscribe(observer);
 
-  const DEFAULT_HTTP_REQUEST_FUNCTION: HttpRequestFunction = (url: string) => {
-    return fetch(url).then((response) =>
-      response
-        .json()
-        .then((json) => (!response.ok ? Promise.reject(json) : json))
-    );
-  };
-
-  const httpRequestFunction =
-    !storeOptions || !storeOptions.httpRequestFunction
-      ? DEFAULT_HTTP_REQUEST_FUNCTION
-      : storeOptions.httpRequestFunction;
-
   return {
     dispatch,
     getEntities,
     subscribeUpdates,
-    httpRequestFunction,
     cleanup,
   };
 };

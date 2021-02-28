@@ -7,14 +7,14 @@ import { StoreProvider, useGet, createStore } from '../index';
 describe('test useGet', () => {
   describe('test api return valid data', () => {
     const user = new schema.Entity('users');
-    const httpRequestFunction = () => {
+    const httpGetFunction = () => {
       return Promise.resolve([{ id: 1, name: 'test' }]);
     };
-    const initStore = createStore({ httpRequestFunction });
+    const initStore = createStore();
 
     test('store should be updated', async () => {
       function App() {
-        const { data, loading } = useGet('/getList', {
+        const { data, loading } = useGet(httpGetFunction, [], {
           schema: [user],
         });
 
@@ -47,14 +47,19 @@ describe('test useGet', () => {
 
   describe('test data return as null', () => {
     const user = new schema.Entity('users');
-    const httpRequestFunction = (url: string) => {
+    const httpGetFunction = () => {
       return Promise.resolve(null);
     };
-    const initStore = createStore({ httpRequestFunction });
+    let initStore: any;
+
+    beforeEach(() => {
+      initStore = createStore();
+    });
+    // const initStore = createStore();
 
     test('store should not be updated', async () => {
       function App() {
-        const { data, loading } = useGet('/getList', {
+        const { data, loading } = useGet(httpGetFunction, [], {
           schema: [user],
         });
 
@@ -82,18 +87,18 @@ describe('test useGet', () => {
   describe('test isUnmount should prevent store update', () => {
     const user = new schema.Entity('users');
     const userData = [{ id: '1' }];
-    const httpRequestFunction = (url: string) => {
+    const httpGetFunction = () => {
       return new Promise((res) => setTimeout(() => res(userData), 1000));
     };
     let initStore: any;
 
     beforeEach(() => {
-      initStore = createStore({ httpRequestFunction });
+      initStore = createStore();
     });
 
     test('store should update', async () => {
       function App() {
-        const { data, loading } = useGet('/getList', {
+        const { data, loading } = useGet(httpGetFunction, [], {
           schema: [user],
         });
 
@@ -125,7 +130,7 @@ describe('test useGet', () => {
 
     test('store should not update', () => {
       function App() {
-        const { data, loading } = useGet('/getList', {
+        const { data, loading } = useGet(httpGetFunction, [], {
           schema: [user],
         });
 

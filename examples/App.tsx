@@ -9,9 +9,8 @@ import {
 import { schema } from 'normalizr';
 
 import { StoreProvider, useGet, createStore } from '../src/index';
-import { useHttp } from '../src/useHttp';
 
-const httpRequestFunction = (url: string) => {
+const httpGetFunction = (url: string) => {
   if (url === '/getList') {
     return Promise.resolve(MOCK_DATA);
   }
@@ -26,7 +25,7 @@ const httpRequestFunction = (url: string) => {
   throw new Error(`Invalid url: ${url}`);
 };
 
-const initStore = createStore({ httpRequestFunction });
+const initStore = createStore({});
 
 const MOCK_DATA: unknown = [
   {
@@ -114,9 +113,20 @@ const schemas = {
 };
 
 function Home() {
-  const { data, loading } = useGet<ListData[]>('/getList', {
-    schema: [schemas.USER],
-  });
+  // const { data, loading } = useGet<ListData[]>('/getList', {
+  //   schema: [schemas.USER],
+  // });
+
+  const { data, loading } = useGet<ListData[]>(
+    () => {
+      return httpGetFunction('/getList');
+    },
+    [],
+    {
+      schema: [schemas.USER],
+    }
+  );
+
   console.log({ data, loading });
   if (loading || !data) return <div>Loading...</div>;
 
@@ -140,11 +150,14 @@ function Detail() {
  * 
  const [postData, {data, loading, error}] = useHttp((params) => {
    
-}, ({entities,response, merge, delete, fetch}) => {
-  fetch(`/getList`, {
-    schema: [schemas.USER],
-  })
-})
+}, {
+  onSuccess: ({entities,response, merge, delete}) => {
+
+  },
+  onError: (err) => {
+
+  }
+}
 
 */
 
@@ -152,10 +165,16 @@ function Detail() {
   //   return entities.users
   // })
 
-  const { data, loading } = useGet<ListData>(`/getDetail/${id}`, {
-    schema: schemas.USER,
-    id,
-  });
+  const { data, loading } = useGet<ListData>(
+    () => {
+      return httpGetFunction(`/getDetail/${id}`);
+    },
+    [id],
+    {
+      schema: schemas.USER,
+      id,
+    }
+  );
   console.log({ data, loading });
   return (
     <div>

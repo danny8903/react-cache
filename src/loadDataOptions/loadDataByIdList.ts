@@ -44,7 +44,7 @@ export default class LoadDataByIdList implements LoadData {
     return intersection.length !== 0;
   }
 
-  loadData(entities: Entities): unknown {
+  loadData({ entities }: { entities: Entities }): unknown {
     const entity = entities[this.schema[0].key];
     if (!entity) {
       throw new Error(`schema ${this.schema[0].key} is not yet loaded`);

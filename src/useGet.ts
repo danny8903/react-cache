@@ -57,22 +57,28 @@ type State<T = unknown> = {
   error?: Error;
 };
 
+type RequestFunction = () => Promise<unknown>;
+
 export function useGet<T>(
-  requestUrl: string,
+  requestFunction: RequestFunction,
+  deps: unknown[],
   options: LoadDataByIdOptions
 ): State<T>;
 export function useGet<T>(
-  requestUrl: string,
+  requestFunction: RequestFunction,
+  deps: unknown[],
   options: LoadDataByIdListOptions
 ): State<T>;
-export function useGet<T>(requestUrl: string): State<T>;
-export function useGet<T>(requestUrl: string, options?: Options): State<T> {
-  const {
-    dispatch,
-    subscribeUpdates,
-    getEntities,
-    httpRequestFunction,
-  } = useContext(StoreContext);
+export function useGet<T>(
+  requestFunction: RequestFunction,
+  deps?: unknown[]
+): State<T>;
+export function useGet<T>(
+  requestFunction: RequestFunction,
+  deps: unknown[] = [],
+  options?: Options
+): State<T> {
+  const { dispatch, subscribeUpdates, getEntities } = useContext(StoreContext);
 
   const loadDataOptions = createLoadDataOptions(options);
 
@@ -92,20 +98,20 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
     data: undefined,
   });
 
-  const { init, triggerUrlChangeHandler } = useMemo(() => {
-    const url$ = new Subject<string>();
+  const { init, triggerRequest } = useMemo(() => {
+    const request$ = new Subject();
     const loadDataState$ = new Subject<LoadDataState<T>>();
     const storeUpdate$ = new Subject<StoreUpdates>();
 
-    const triggerUrlChangeHandler = (url: string) => url$.next(url);
+    const triggerRequest = () => request$.next(void 0);
 
-    const newUrlRequestHandler$ = url$.pipe(
-      mergeMap((url) => {
+    const requestHandler$ = request$.pipe(
+      mergeMap(() => {
         const entities = getEntities();
 
         if (loadDataOptions.shouldFetchData({ entities })) {
           // fetch data
-          return fetchData(url);
+          return fetchData();
         }
 
         return of((loadDataOptions as LoadData).loadData({ entities })).pipe(
@@ -123,12 +129,12 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
       })
     );
 
-    const fetchData = (url: string) =>
+    const fetchData = () =>
       merge(
         of<LoadingState>({
           type: LoadDataStateTypes.loading,
         }),
-        from(httpRequestFunction(url)).pipe(
+        from(requestFunction()).pipe(
           filter(() => !isUnmount.current),
           mergeMap((responseData) => {
             if (loadDataOptions instanceof NeverLoadData) {
@@ -142,7 +148,7 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
               const normalized = normalize(
                 responseData,
                 loadDataOptions.schema
-              ); /** pass userMergeStrategy and userProcessStrategy */
+              );
 
               isEntitiesValid(normalized.entities);
 
@@ -226,9 +232,7 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
 
     const init = () => {
       const loadDataStateSubscription = loadDataStateHandler$.subscribe();
-      const newUrlSubscription = newUrlRequestHandler$.subscribe(
-        loadDataState$
-      );
+      const requestSubscription = requestHandler$.subscribe(loadDataState$);
 
       const storeUpdateHandlerSubscription = storeUpdateHandler$.subscribe(
         loadDataState$
@@ -239,11 +243,11 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
         isUnmount.current = true;
 
         loadDataStateSubscription.unsubscribe();
-        newUrlSubscription.unsubscribe();
+        requestSubscription.unsubscribe();
         storeUpdateSubscription.unsubscribe();
         storeUpdateHandlerSubscription.unsubscribe();
 
-        url$.complete();
+        request$.complete();
         loadDataState$.complete();
         storeUpdate$.complete();
       };
@@ -251,7 +255,7 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
 
     return {
       init,
-      triggerUrlChangeHandler,
+      triggerRequest,
     };
   }, []);
 
@@ -264,10 +268,8 @@ export function useGet<T>(requestUrl: string, options?: Options): State<T> {
   }, []);
 
   useEffect(() => {
-    if (!!requestUrl) {
-      triggerUrlChangeHandler(requestUrl);
-    }
-  }, [requestUrl]);
+    triggerRequest();
+  }, deps);
 
   return {
     ...state,

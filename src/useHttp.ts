@@ -42,24 +42,25 @@ type State = {
 
 type Result = [(params: unknown) => void, State];
 
-type RequestFunction = (params: unknown) => Promise<unknown>;
+type RequestFunction = (...args: unknown[]) => Promise<unknown>;
 
-type UpdateStrategyProps = {
+type OnSuccessProps = {
   entities: Entities;
   response: unknown;
   merge: (newEntities: Entities) => void;
   delete: (deletedEntitiesAndIds: UpdatedEntitiesAndIds) => void;
-  fetch: (url: string, schema: Schema) => void;
 };
-type UpdateStrategy = (props: UpdateStrategyProps) => void;
+
+type Options = {
+  onSuccess: (props: OnSuccessProps) => void;
+  onError: (err: Error) => void;
+};
 
 export function useHttp(
   requestFunction: RequestFunction,
-  updateStrategy: UpdateStrategy
+  options?: Options
 ): Result {
-  const { dispatch, getEntities, httpRequestFunction } = useContext(
-    StoreContext
-  );
+  const { dispatch, getEntities } = useContext(StoreContext);
 
   const [state, setState] = useState<State>({
     loading: false,
@@ -68,55 +69,53 @@ export function useHttp(
   });
 
   const { init, triggerRequestHandler } = useMemo(() => {
-    const request$ = new Subject();
+    const request$ = new Subject<unknown[]>();
     const loadDataState$ = new Subject<LoadDataState>();
 
-    const triggerRequestHandler = (params: unknown) => request$.next(params);
+    const triggerRequestHandler = (...args: unknown[]) => request$.next(args);
 
     const requestHandler$ = request$.pipe(
-      mergeMap((params) => {
+      mergeMap((args) => {
         return merge(
           of<LoadingState>({
             type: RequestStates.loading,
           }),
-          from(requestFunction(params)).pipe(
+          from(requestFunction(...args)).pipe(
             map<unknown, SuccessState>((responseData) => ({
               type: RequestStates.success,
               data: responseData,
             })),
             tap((successState) => {
-              updateStrategy({
-                response: successState.data,
-                entities: getEntities(),
-                merge: (newEntities) => {
-                  dispatch({
-                    type: StoreActionTypes.merge,
-                    newEntities,
-                  });
-                },
-                delete: (deletedEntitiesAndIds) => {
-                  dispatch({
-                    type: StoreActionTypes.delete,
-                    deletedEntitiesAndIds,
-                  });
-                },
-                fetch: (url, schema) => {
-                  httpRequestFunction(url).then((responseData) => {
-                    const normalized = normalize(responseData, schema);
-                    isEntitiesValid(normalized.entities);
+              if (options?.onSuccess) {
+                options.onSuccess({
+                  response: successState.data,
+                  entities: getEntities(),
+                  merge: (newEntities) => {
                     dispatch({
                       type: StoreActionTypes.merge,
-                      newEntities: normalized.entities,
+                      newEntities,
                     });
-                  });
-                },
-              });
+                  },
+                  delete: (deletedEntitiesAndIds) => {
+                    dispatch({
+                      type: StoreActionTypes.delete,
+                      deletedEntitiesAndIds,
+                    });
+                  },
+                });
+              }
             }),
             catchError((err) =>
               of<ErrorState>({
                 type: RequestStates.error,
                 error: err,
-              })
+              }).pipe(
+                tap((errorState) => {
+                  if (options?.onError) {
+                    options.onError(errorState.error);
+                  }
+                })
+              )
             )
           )
         );

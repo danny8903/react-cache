@@ -4,7 +4,6 @@ import { Subscription } from 'rxjs/internal/Subscription';
 import * as normalizr from 'normalizr';
 
 export { Observable, Subscription };
-export type HttpRequestFunction<T = unknown> = (url: string) => Promise<T>;
 
 export enum StoreActionTypes {
   fetch = 'FETCH_DATA',
@@ -56,7 +55,7 @@ export type ResponseData = {
 };
 
 export type StoreOptions = {
-  httpRequestFunction?: HttpRequestFunction;
+  onError?: (err: Error) => void;
 };
 
 export type StoreUpdates = {
@@ -68,7 +67,6 @@ export interface IStoreContextValue {
   dispatch: (fieldAction: StoreAction) => void;
   getEntities: () => Entities;
   subscribeUpdates: (observer: Observer<StoreUpdates>) => Subscription;
-  httpRequestFunction: HttpRequestFunction;
   cleanup: () => void;
 }
 
