@@ -13,14 +13,7 @@ export enum StoreActionTypes {
   error = 'ERROR',
 }
 
-export type Schema =
-  | normalizr.schema.Entity
-  | [normalizr.schema.Entity]
-  | Union;
-
-export type Union = {
-  [key: string]: Schema;
-};
+export type Schema = normalizr.schema.Entity | [normalizr.schema.Entity];
 
 /**
  * This will be passed as input of denormalize
