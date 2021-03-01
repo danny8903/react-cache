@@ -96,8 +96,10 @@ const { data, loading, error } = useGet(queryFn, dependenciesList, {
 - `shouldFetchData: (normalizeData: unknown) => boolean`
   - Optional if schema is normalizr.schema.Entity
   - it is used to control if it should run queryFn
-- `findEntityIds: (entity: Entity, entities: Entities) => string[]` - Optional if schema is [normalizr.schema.Entity] - The return array string id will be used to denormalize the flatten store data, it is like a filter function.
-  <br>
+- `findEntityIds: (entity: Entity, entities: Entities) => string[]`
+  - Optional if schema is [normalizr.schema.Entity]
+  - The return array string id will be used to denormalize the flatten store data, it is like a filter function.
+    <br>
 
 ### _useStore Properties_
 
