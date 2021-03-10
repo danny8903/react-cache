@@ -64,7 +64,6 @@
     "@testing-library/user-event": "^12.6.3",
     "@types/fork-ts-checker-webpack-plugin": "^0.4.5",
     "@types/jest": "^26.0.20",
-    "@types/lodash.isequal": "^4.5.5",
     "@types/react": "^17.0.0",
     "@types/react-dom": "^17.0.0",
     "@types/react-router-dom": "^5.1.6",
@@ -90,14 +89,12 @@
     "webpack-cli": "^4.2.0",
     "webpack-dev-server": "^3.11.0",
     "webpack-plugin-serve": "^1.2.1",
-    "lodash.isequal": "^4.5.0",
     "normalizr": "^3.6.1",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "rxjs": "^6.6.3"
   },
   "peerDependencies": {
-    "lodash": ">=4.5.0",
     "react": ">=16.8.x",
     "react-dom": ">=16.8.x",
     "rxjs": ">=6.5.x",

@@ -1,4 +1,4 @@
-import * as normalizr from 'normalizr';
+import { schema as normalizrSchema } from 'normalizr';
 
 import { Schema, Entities } from './interfaces';
 
@@ -7,28 +7,30 @@ export const validateSchema = (schema?: Schema): void => {
     throw new Error('Expected a schema definition, but got undefined');
   }
 
-  if (schema instanceof normalizr.schema.Entity) return;
-
+  if (schema instanceof normalizrSchema.Entity) {
+    Object.values((schema as any).schema).forEach((subSchema) => {
+      validateSchema(subSchema as Schema);
+    });
+    return;
+  }
   if (Array.isArray(schema)) {
     if (schema.length > 1) {
       throw new Error(
-        `Expected schema definition to be a single schema, but found ${schema.length}`
+        `Expected schema definition to be a single schema, but found ${schema.length}, schema: ${schema}`
       );
     }
-    if (!(schema[0] instanceof normalizr.schema.Entity)) {
+    if (!(schema[0] instanceof normalizrSchema.Entity)) {
       throw new Error(
-        `Invalid schema, expect an instance of normalizr.schema.Entity`
+        `Invalid schema, expect an instance of normalizr.schema.Entity, but found ${schema[0]}`
       );
     }
+    Object.values((schema[0] as any).schema).forEach((subSchema1) => {
+      validateSchema(subSchema1 as Schema);
+    });
     return;
   }
 
-  // if (typeof schema === 'object' && schema !== null) {
-  //   Object.values(schema).forEach((s) => validateSchema(s));
-  //   return;
-  // }
-
-  throw new Error(`Invalid schema`);
+  throw new Error(`Invalid schema, got ${schema}`);
 };
 
 // export const getFlattenEntityKeys = (schema: Schema): string[] => {
@@ -93,12 +95,11 @@ export const isEntitiesValid = (data: Entities): void => {
     );
 };
 
-export const getSubSchemasKeys = (
-  schema: normalizr.schema.Entity
-): string[] => {
-  const schemaName = schema.key;
-  const subSchemas: normalizr.schema.Entity[] = Object.values(
-    (schema as any).schema
+export const getSubSchemasKeys = (schema: Schema): string[] => {
+  const schemaInstance = Array.isArray(schema) ? schema[0] : schema;
+  const schemaName = schemaInstance.key;
+  const subSchemas: normalizrSchema.Entity[] = Object.values(
+    (schemaInstance as any).schema
   );
   return subSchemas.reduce(
     (keys, subSchema) => {

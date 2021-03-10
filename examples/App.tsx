@@ -123,7 +123,6 @@ function Home() {
     }
   );
 
-  console.log({ data, loading });
   if (loading || !data) return <div>Loading...</div>;
 
   return (
@@ -152,7 +151,6 @@ function Detail() {
       id,
     }
   );
-  console.log({ data, loading });
   return (
     <div>
       <h2>{id}</h2>

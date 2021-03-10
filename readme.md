@@ -1,9 +1,23 @@
 ## Introduction
 
-This React Cache library is an alternative of redux. It helps you manage your data store without defining too many actions and reducer. It helps you efficiently render the updated data in the UI
-<br><br>
+This React Cache library is inspired by redux and apollo-graphQL. It helps you manage your data and render your app properly.
+Compare to redux:
+
+- by default, it supports nested data.
+- no need to define many actions and corresponding reducers, just define a schema (like graphQL), it will automatically updated the data store. And UI component consuming related schema will get re-render.
+
+Compare to apollo-graphQL:
+
+- it supports REST API, no need to use the Apollo link or change backend to apply graphQL
+  <br><br>
 
 ## Installation
+
+Install rxjs (">=6.5.x) and normalizr (">=3.6.1") if you don't have it.
+
+> npm install --save rxjs normalizr
+
+Install react-cache
 
 > npm install --save @danny-ui/react-cache
 
@@ -15,21 +29,90 @@ This React Cache library is an alternative of redux. It helps you manage your da
 import { StoreProvider, useGet, createStore } from '@danny-ui/react-cache';
 import { schema } from 'normalizr';
 
-const schemas = {
-  USER: new schema.Entity('user'),
-};
+const user = new schema.Entity('user');
+
+const comment = new schema.Entity('comments', {
+  commenter: user,
+});
+
+const post = new schema.Entity('posts', {
+  author: user,
+  comments: [comment],
+});
+
+const restfulData = [
+  {
+    id: '1',
+    title: 'My first post!',
+    author: {
+      id: '123',
+      name: 'Paul',
+    },
+    comments: [
+      {
+        id: '249',
+        content: 'Nice post!',
+        commenter: {
+          id: '245',
+          name: 'Jane',
+        },
+      },
+      {
+        id: '250',
+        content: 'Thanks!',
+        commenter: {
+          id: '123',
+          name: 'Paul',
+        },
+      },
+    ],
+  },
+  {
+    id: '2',
+    title: 'This other post',
+    author: {
+      id: '123',
+      name: 'Paul',
+    },
+    comments: [
+      {
+        id: '251',
+        content: 'Your other post was nicer',
+        commenter: {
+          id: '245',
+          name: 'Jane',
+        },
+      },
+      {
+        id: '252',
+        content: 'I am a spammer!',
+        commenter: {
+          id: '246',
+          name: 'Spambot5000',
+        },
+      },
+    ],
+  },
+];
 
 function Home() {
-  const { data, loading } = useGet<ListData[]>(
-    () => {
-      return fetch('/getList');
+  const { data, loading, error } = useGet(
+    async () => {
+      //return fetch("/getList");
+      return new Promise((res) => {
+        setTimeout(() => {
+          res(restfulData);
+        }, 1000);
+      });
     },
     [],
     {
-      schema: [schemas.USER],
+      schema: [post],
     }
   );
+
   if (loading || !data) return <div>Loading...</div>;
+  if (error) return <div>{error.message}</div>;
 
   return <div> /** rendering list data */ </div>;
 }
