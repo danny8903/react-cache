@@ -1,19 +1,22 @@
 {
-  "name": "react-cache",
-  "version": "1.0.0",
+  "name": "@danny-ui/react-cache",
+  "version": "0.1.0",
   "description": "",
   "main": "lib/index.js",
   "module": "es/index.js",
-  "types": "dist/index.d.ts",
+  "types": "types/index.d.ts",
   "files": [
-    "dist",
+    "types",
     "lib",
     "es",
     "README.md"
   ],
   "scripts": {
     "test": "jest",
-    "start": "webpack --mode development"
+    "start": "webpack --mode development",
+    "build": "yarn build:types && yarn build:rollup",
+    "build:types": "rm -rf types && tsc --build ./tsconfig.build.types.json",
+    "build:rollup": "rm -rf lib/ && rm -rf es/ && rollup -c rollup.config.js"
   },
   "author": "Danny Qu",
   "license": "ISC",
@@ -54,6 +57,8 @@
     "@babel/preset-react": "^7.12.7",
     "@babel/preset-typescript": "^7.12.7",
     "@babel/runtime": "^7.12.5",
+    "@rollup/plugin-babel": "^5.3.0",
+    "@rollup/plugin-typescript": "^8.2.0",
     "@testing-library/jest-dom": "^5.11.9",
     "@testing-library/react": "^11.2.5",
     "@testing-library/user-event": "^12.6.3",
@@ -76,6 +81,7 @@
     "jest-environment-jsdom-sixteen": "^1.0.3",
     "jest-watch-typeahead": "^0.6.1",
     "react-router-dom": "^5.2.0",
+    "rollup": "^2.40.0",
     "style-loader": "^2.0.0",
     "ts-jest": "^26.4.4",
     "ts-loader": "^8.0.11",
@@ -83,13 +89,18 @@
     "webpack": "^5.9.0",
     "webpack-cli": "^4.2.0",
     "webpack-dev-server": "^3.11.0",
-    "webpack-plugin-serve": "^1.2.1"
-  },
-  "dependencies": {
+    "webpack-plugin-serve": "^1.2.1",
     "lodash.isequal": "^4.5.0",
     "normalizr": "^3.6.1",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "rxjs": "^6.6.3"
+  },
+  "peerDependencies": {
+    "lodash": ">=4.5.0",
+    "react": ">=16.8.x",
+    "react-dom": ">=16.8.x",
+    "rxjs": ">=6.5.x",
+    "normalizr": ">=3.6.1"
   }
 }

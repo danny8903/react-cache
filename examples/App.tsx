@@ -113,10 +113,6 @@ const schemas = {
 };
 
 function Home() {
-  // const { data, loading } = useGet<ListData[]>('/getList', {
-  //   schema: [schemas.USER],
-  // });
-
   const { data, loading } = useGet<ListData[]>(
     () => {
       return httpGetFunction('/getList');
@@ -145,25 +141,6 @@ function Home() {
 
 function Detail() {
   const { id } = useParams<{ id: string }>();
-  /**
- * 
- * 
- const [postData, {data, loading, error}] = useHttp((params) => {
-   
-}, {
-  onSuccess: ({entities,response, merge, delete}) => {
-
-  },
-  onError: (err) => {
-
-  }
-}
-
-*/
-
-  // const data = useStore((entities) => {
-  //   return entities.users
-  // })
 
   const { data, loading } = useGet<ListData>(
     () => {

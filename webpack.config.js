@@ -12,13 +12,16 @@ module.exports = {
     filename: 'bundle.js',
     path: outputPath,
   },
-  mode: 'development',
+  // mode: 'development',
   devtool: 'inline-source-map',
   plugins: [
     new ForkTsCheckerWebpackPlugin({
       async: false,
       eslint: {
-        files: ["./examples/**/*.{ts,tsx,js,jsx}", './src/**/*.{ts,tsx,js,jsx}'],
+        files: [
+          './examples/**/*.{ts,tsx,js,jsx}',
+          './src/**/*.{ts,tsx,js,jsx}',
+        ],
       },
     }),
     new HtmlwebpackPlugin({
@@ -34,18 +37,32 @@ module.exports = {
   ],
   module: {
     rules: [
+      // {
+      //   test: /\.tsx?$/,
+      //   exclude: /node_modules/,
+      //   use: [
+      //     {
+      //       loader: 'babel-loader',
+      //       options: {
+      //         presets: [
+      //           '@babel/preset-env',
+      //           '@babel/preset-react',
+      //           '@babel/preset-typescript',
+      //         ],
+      //       },
+      //     },
+      //   ],
+      // },
       {
         test: /\.tsx?$/,
         exclude: /node_modules/,
         use: [
           {
-            loader: 'babel-loader',
+            loader: 'ts-loader',
             options: {
-              presets: [
-                '@babel/preset-env',
-                '@babel/preset-react',
-                '@babel/preset-typescript',
-              ],
+              compilerOptions: {
+                noEmit: false,
+              },
             },
           },
         ],

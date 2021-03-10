@@ -23,32 +23,32 @@ export const validateSchema = (schema?: Schema): void => {
     return;
   }
 
-  if (typeof schema === 'object' && schema !== null) {
-    Object.values(schema).forEach((s) => validateSchema(s));
-    return;
-  }
+  // if (typeof schema === 'object' && schema !== null) {
+  //   Object.values(schema).forEach((s) => validateSchema(s));
+  //   return;
+  // }
 
   throw new Error(`Invalid schema`);
 };
 
-export const getFlattenEntityKeys = (schema: Schema): string[] => {
-  if (schema instanceof normalizr.schema.Entity) {
-    return [schema.key];
-  }
+// export const getFlattenEntityKeys = (schema: Schema): string[] => {
+//   if (schema instanceof normalizr.schema.Entity) {
+//     return [schema.key];
+//   }
 
-  if (Array.isArray(schema)) {
-    return [schema[0].key];
-  }
+//   if (Array.isArray(schema)) {
+//     return [schema[0].key];
+//   }
 
-  if (typeof schema === 'object' && schema !== null) {
-    return Object.values(schema).reduce(
-      (keys, val) => [...keys, ...getFlattenEntityKeys(val)],
-      [] as string[]
-    );
-  }
+//   if (typeof schema === 'object' && schema !== null) {
+//     return Object.values(schema).reduce(
+//       (keys, val) => [...keys, ...getFlattenEntityKeys(val)],
+//       [] as string[]
+//     );
+//   }
 
-  return [];
-};
+//   return [];
+// };
 
 export const parseEntitiesUpdates = (entities: Entities) => {
   const entitiesNames = Object.keys(entities);
